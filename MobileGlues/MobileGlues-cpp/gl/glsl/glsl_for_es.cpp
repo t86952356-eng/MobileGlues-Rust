@@ -6,6 +6,8 @@
 // End of Source File Header
 #include "glsl_for_es.h"
 
+#include "rs_bridge.h"
+
 #include <glslang/Public/ShaderLang.h>
 #include <glslang/Include/Types.h>
 #include <glslang/Public/ShaderLang.h>
@@ -158,6 +160,10 @@ static TBuiltInResource InitResources() {
 }
 
 int getGLSLVersion(const char* glsl_code) {
+    // mobileglues-rs: single-pass scanner replaces the regex; identical result
+    // space (first #version + \s+ + three digits anywhere in the source).
+    if (auto v = rs::get_glsl_version(glsl_code)) return *v;
+
     std::string code(glsl_code);
     static std::regex version_pattern(R"(#version\s+(\d{3}))");
     std::smatch match;
@@ -169,6 +175,10 @@ int getGLSLVersion(const char* glsl_code) {
 }
 
 std::string forceSupporterOutput(const std::string& glslCode) {
+    // mobileglues-rs: same output without the istringstream line split and
+    // the per-line vector allocations.
+    if (auto r = rs::force_supported_output(glslCode)) return std::move(*r);
+
     bool hasPrecisionFloat =
         glslCode.find("precision ") != std::string::npos && glslCode.find("float;") != std::string::npos;
     bool hasPrecisionInt =
@@ -226,6 +236,11 @@ std::string forceSupporterOutput(const std::string& glslCode) {
 }
 
 std::string removeLayoutBinding(const std::string& glslCode) {
+    // mobileglues-rs: two deterministic scanner passes replace the two
+    // regex_replace calls; byte-for-byte identical output including the
+    // whitespace the regexes swallow after ')'.
+    if (auto r = rs::remove_layout_binding(glslCode)) return std::move(*r);
+
     static std::regex bindingRegex(R"(layout\s*\(\s*binding\s*=\s*\d+\s*\)\s*)");
     std::string result = std::regex_replace(glslCode, bindingRegex, "");
     static std::regex bindingRegex2(R"(layout\s*\(\s*binding\s*=\s*\d+\s*,)");
@@ -341,6 +356,9 @@ std::string process_uniform_declarations(const std::string& glslCode) {
 }
 
 std::string processOutColorLocations(const std::string& glslCode) {
+    // mobileglues-rs: literal scanner for the fixed-shape outColor pattern.
+    if (auto r = rs::process_out_color_locations(glslCode)) return std::move(*r);
+
     const static std::regex pattern(R"(\n(out highp vec4 outColor)(\d+);)");
     const std::string replacement = "\nlayout(location=$2) $1$2;";
     return std::regex_replace(glslCode, pattern, replacement);
@@ -501,9 +519,22 @@ void process_sampler_buffer(std::string& source) { // a simplized version, shoul
         pos += 11;
     }
 
-    std::regex pattern(R"(texelFetch\s*\(\s*(\w+)\s*,\s*([^)]+?)\s*\))");
-    source = std::regex_replace(source, pattern,
-                                "texelFetch($1, ivec2(($2) % u_BufferTexWidth, ($2) / u_BufferTexWidth), 0)");
+    // mobileglues-rs: the two texelFetch rewrite passes run as one Rust call
+    // (two sequential scanner passes, byte-for-byte identical to the two
+    // regex_replace calls below, including the whitespace-only-index quirk
+    // where the lazy capture takes exactly one space).
+    if (auto r = rs::process_sampler_buffer_rewrite(source)) {
+        source = std::move(*r);
+    } else {
+        std::regex pattern(R"(texelFetch\s*\(\s*(\w+)\s*,\s*([^)]+?)\s*\))");
+        source = std::regex_replace(source, pattern,
+                                    "texelFetch($1, ivec2(($2) % u_BufferTexWidth, ($2) / u_BufferTexWidth), 0)");
+
+        source = std::regex_replace(
+            source,
+            std::regex("texelFetch\\((\\w+)\\s*,\\s*ivec2\\(([^)]+)\\)\\s*,\\s*0\\)"),
+            "texelFetch($1, bufferCoords($2), 0)");
+    }
 
     const char* boundaryProtection = R"(
 ivec2 bufferCoords(int index) {
@@ -517,9 +548,6 @@ ivec2 bufferCoords(int index) {
     return ivec2(x, y);
 }
 )";
-
-    source = std::regex_replace(source, std::regex("texelFetch\\((\\w+)\\s*,\\s*ivec2\\(([^)]+)\\)\\s*,\\s*0\\)"),
-                                "texelFetch($1, bufferCoords($2), 0)");
 
     size_t insertion_point = find_insertion_point(source);
     if (insertion_point != std::string::npos) {
@@ -546,7 +574,10 @@ static void inject_textureQueryLod(std::string& glsl) {
     if (glsl.find("textureQueryLod") == std::string::npos) {
         return;
     }
-    if (std::regex_search(glsl, defRegex)) {
+    // mobileglues-rs: cheap definition probe instead of regex_search.
+    if (auto defined = rs::has_texture_query_lod_def(glsl)) {
+        if (*defined) return;
+    } else if (std::regex_search(glsl, defRegex)) {
         return;
     }
 
@@ -573,18 +604,28 @@ static inline void inject_temporal_filter(std::string& glsl) {
     if (glsl.find("GI_TemporalFilter") == std::string::npos) {
         return;
     }
-    if (std::regex_search(glsl, defRegex)) {
+    // mobileglues-rs: both the definition probe and the last-uniform-line
+    // scan (which upstream drives through a multiline sregex_iterator) are
+    // handled by the Rust core; on any failure the original path runs.
+    if (auto defined = rs::has_temporal_filter_def(glsl)) {
+        if (*defined) return;
+    } else if (std::regex_search(glsl, defRegex)) {
         return;
     }
 
     const std::regex uniformRegex(
         R"(^\s*(?:layout\s*\([^)]*\)\s*)?uniform\s+\w+(?:\s*\[\s*\d+\s*\])?\s+\w+(?:\s*\[\s*\d+\s*\])?\s*;.*$)",
         std::regex::ECMAScript | std::regex::multiline);
-    std::sregex_iterator it(glsl.begin(), glsl.end(), uniformRegex);
-    std::sregex_iterator end;
+
     size_t insertPos = 0;
-    for (; it != end; ++it) {
-        insertPos = it->position() + it->length();
+    if (auto pos = rs::find_uniform_insert_pos(glsl)) {
+        insertPos = *pos;
+    } else {
+        std::sregex_iterator it(glsl.begin(), glsl.end(), uniformRegex);
+        std::sregex_iterator end;
+        for (; it != end; ++it) {
+            insertPos = it->position() + it->length();
+        }
     }
 
     const std::string GI_TemporalFilterImpl = R"(

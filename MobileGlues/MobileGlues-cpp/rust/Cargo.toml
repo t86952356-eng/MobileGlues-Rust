@@ -1,0 +1,16 @@
+[package]
+name = "mobileglues-rs"
+version = "0.1.0"
+edition = "2021"
+description = "Rust text-processing core for the MobileGlues-RS renderer (GLSL translation pipeline)"
+license = "LGPL-2.1-only"
+publish = false
+
+[lib]
+name = "mobileglues_rs"
+crate-type = ["staticlib"]
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1

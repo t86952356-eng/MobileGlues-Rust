@@ -114,6 +114,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
     gl/ExtWrappers/MultiBindWrapper.cpp
     gl/glsl/glsl_for_es.cpp
     gl/glsl/cache.cpp
+    gl/glsl/rs_bridge.cpp
     gl/FSR1/FSR1.cpp
 
     gl/vertexattrib.cpp
@@ -137,6 +138,90 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
     glslang::glslang
     spirv-cross-c
 )
+
+# ----------------------------------------------------------------------------
+# mobileglues-rs — Rust text-processing core
+#
+# Builds the rust/ crate with cargo for the current Android ABI and links the
+# resulting static library into libmobileglues.so. The C++ side reaches it
+# through weak symbols (gl/glsl/rs_bridge.h), so a build without cargo
+# (MG_ENABLE_RUST=OFF, or cargo not found) still produces a fully working
+# library that runs the original C++ implementations.
+# ----------------------------------------------------------------------------
+set(MG_ENABLE_RUST ON CACHE BOOL "Build and link the mobileglues-rs Rust core")
+
+if(MG_ENABLE_RUST AND ANDROID)
+    find_program(MG_CARGO_EXE cargo)
+    if(NOT MG_CARGO_EXE)
+        message(WARNING "cargo not found — building WITHOUT the Rust core; the C++ fallback paths will be used")
+        set(MG_ENABLE_RUST OFF)
+    endif()
+endif()
+
+if(MG_ENABLE_RUST AND ANDROID)
+    set(MG_RS_TRIPLE "")
+    if(ANDROID_ABI STREQUAL "arm64-v8a")
+        set(MG_RS_TRIPLE aarch64-linux-android)
+    elseif(ANDROID_ABI STREQUAL "armeabi-v7a")
+        set(MG_RS_TRIPLE armv7-linux-androideabi)
+    elseif(ANDROID_ABI STREQUAL "x86_64")
+        set(MG_RS_TRIPLE x86_64-linux-android)
+    elseif(ANDROID_ABI STREQUAL "x86")
+        set(MG_RS_TRIPLE i686-linux-android)
+    else()
+        message(WARNING "Unknown ANDROID_ABI '${ANDROID_ABI}' — building WITHOUT the Rust core")
+    endif()
+endif()
+
+if(MG_ENABLE_RUST AND ANDROID AND MG_RS_TRIPLE)
+    # API level: from ANDROID_PLATFORM (e.g. "android-21"), defaulting to 21
+    # (the AAR minSdk) when the variable is absent.
+    string(REGEX REPLACE "android-" "" _rs_api "${ANDROID_PLATFORM}")
+    if(NOT _rs_api MATCHES "^[0-9]+$")
+        set(_rs_api 21)
+    endif()
+
+    # Cargo needs a linker executable; point it at a tiny wrapper that calls
+    # the NDK clang with the right --target so we do not have to guess the
+    # per-triple wrapper script names for every NDK revision.
+    get_filename_component(_rs_clang_dir "${CMAKE_C_COMPILER}" DIRECTORY)
+    set(_rs_linker "${CMAKE_CURRENT_BINARY_DIR}/rust-linker-${MG_RS_TRIPLE}.sh")
+    file(WRITE "${_rs_linker}" "#!/bin/sh\nexec \"${_rs_clang_dir}/clang\" --target=${MG_RS_TRIPLE}${_rs_api} \"\$@\"\n")
+    file(CHMOD "${_rs_linker}" PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+
+    string(TOUPPER "${MG_RS_TRIPLE}" _rs_triple_upper)
+    string(REPLACE "-" "_" _rs_linker_env "CARGO_TARGET_${_rs_triple_upper}_LINKER")
+
+    set(MG_RS_TARGET_DIR "${CMAKE_CURRENT_BINARY_DIR}/rust-target")
+    set(MG_RS_LIB "${MG_RS_TARGET_DIR}/${MG_RS_TRIPLE}/release/libmobileglues_rs.a")
+
+    file(GLOB_RECURSE MG_RS_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/rust/src/*.rs")
+    add_custom_command(
+        OUTPUT "${MG_RS_LIB}"
+        COMMAND "${CMAKE_COMMAND}" -E env
+            "${_rs_linker_env}=${_rs_linker}"
+            "${MG_CARGO_EXE}" build --release --target "${MG_RS_TRIPLE}"
+                --target-dir "${MG_RS_TARGET_DIR}"
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/rust"
+        DEPENDS ${MG_RS_SOURCES} "${CMAKE_CURRENT_SOURCE_DIR}/rust/Cargo.toml"
+        COMMENT "Building mobileglues-rs (${MG_RS_TRIPLE})"
+        VERBATIM
+        USES_TERMINAL
+    )
+
+    add_library(mobileglues_rs STATIC IMPORTED)
+    set_target_properties(mobileglues_rs PROPERTIES
+        IMPORTED_LOCATION "${MG_RS_LIB}"
+        IMPORTED_NO_SONAME TRUE
+    )
+    add_custom_target(mobileglues_rs_build DEPENDS "${MG_RS_LIB}")
+    add_dependencies(${CMAKE_PROJECT_NAME} mobileglues_rs_build)
+    target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE mobileglues_rs)
+    target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE MG_RS_INTEGRATED=1)
+    message(STATUS "mobileglues-rs: enabled for ${MG_RS_TRIPLE} (api ${_rs_api})")
+else()
+    message(STATUS "mobileglues-rs: disabled (non-Android build or cargo unavailable); C++ fallback paths will be used")
+endif()
 
 if (NOT MSVC)
     # Calls between this library's own translation units must land in this
