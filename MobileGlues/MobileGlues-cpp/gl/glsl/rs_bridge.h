@@ -13,22 +13,36 @@
 
 // Bridge to the Rust text-processing core (mobileglues-rs).
 //
-// The Rust symbols are declared weak: when libmobileglues_rs.a is linked
-// into libmobileglues.so (CMake finds cargo and the Rust targets) the
-// pointers resolve; otherwise they stay null and every dispatcher below
-// reports "unavailable" so the original C++ implementations run. That keeps
-// a Rust-less build (no cargo on the machine, -DMG_ENABLE_RUST=OFF) fully
-// functional.
+// Two linking modes:
+//
+//  MG_RS_INTEGRATED (set by CMake when libmobileglues_rs.a is linked):
+//   the FFI symbols are declared STRONG. Strong undefined references are
+//   what make the linker pull the archive members out of the static
+//   library — weak undefined references never trigger archive extraction,
+//   which would silently leave every dispatcher on the C++ fallback.
+//
+//  No MG_RS_INTEGRATED (build without cargo, -DMG_ENABLE_RUST=OFF, MSVC):
+//   the symbols are declared weak; unresolved weak references stay null at
+//   runtime and every dispatcher below reports "unavailable" so the
+//   original C++ implementations run. That keeps a Rust-less build fully
+//   functional.
 //
 // Runtime escape hatch: MG_RS_DISABLE=1 forces the C++ paths even when the
 // Rust core is linked, for A/B comparison and emergency fallback.
 
-#if defined(__GNUC__) || defined(__clang__)
+#if (defined(__GNUC__) || defined(__clang__)) && !defined(MG_RS_INTEGRATED)
 #define MG_RS_WEAK __attribute__((weak))
 #else
 #define MG_RS_WEAK
-// MSVC has no weak symbols: build as if the Rust core were absent.
-#define MG_RS_NO_WEAK 1
+// (MSVC has no weak symbols; without MG_RS_INTEGRATED the declarations
+// stay plain declarations and never get called because rs_linked() is
+// hardcoded to false — see rs_bridge.cpp.)
+#endif
+
+#if defined(MG_RS_INTEGRATED)
+#define MG_RS_LINKED 1
+#else
+#define MG_RS_LINKED 0
 #endif
 
 extern "C" {

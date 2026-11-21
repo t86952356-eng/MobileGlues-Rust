@@ -28,11 +28,13 @@ private:
 };
 
 bool rs_linked() {
-#if defined(MG_RS_NO_WEAK)
-    return false;
+#if MG_RS_LINKED
+    // Strong references + linked archive: the core is in this binary.
+    // mg_rs_available() is the probe kept for logs/verification tooling.
+    return mg_rs_available() == 1;
 #else
-    // The availability symbol is always exported by the Rust core, so a
-    // non-null pointer means the whole FFI surface resolved.
+    // Weak mode: the availability symbol stays null unless the Rust core
+    // somehow got linked anyway (e.g. a packager added it); use it if so.
     return mg_rs_available != nullptr && mg_rs_available() == 1;
 #endif
 }

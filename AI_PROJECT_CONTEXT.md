@@ -89,7 +89,9 @@
 
 ## 8. نتائج القياسات الفعلية
 
-- **البيئة**: مضيف التطوير x86_64، g++ -O2 ضد cargo --release، مجموع ns/نداء عبر 12 ملف corpus (انظر تقرير CI المستقل المرفق مع كل إصدار: `rsdiff-report-<tag>.txt`).
+- **على عدّاء GitHub Actions** (التقرير الكامل مرفق بالإصدار 2.1.0): find_uniform_insert_pos **46.0x** — processOutColorLocations **8.75x** — removeLayoutBinding **8.28x** — مسبارا التعريف **13.1-13.5x** — process_sampler_buffer **11.6x** — getGLSLVersion **1.9x** — forceSupporterOutput **1.2x**. التكافؤ: PASS 12/12.
+- **على مضيف التطوير** x86_64 (g++ -O2 ضد cargo --release، مجموع ns/نداء عبر 12 ملف corpus): getGLSLVersion 2.42x — removeLayoutBinding 8.51x — processOutColorLocations 8.40x — forceSupporterOutput 1.70x — process_sampler_buffer 21.26x — find_uniform_insert_pos 185.54x — مسبارا التعريف 35.5-36.8x.
+- درس هندسي مهم من هذا الإصدار: المراجع الضعيفة لا تسحب أعضاء static archive — راجع GITHUB_BUILD_GUIDE §F/#7 وقاعدة فحص `nm -D` بعد كل ربط.
 - getGLSLVersion: 3022→1247 ns (**2.42x**) — removeLayoutBinding: 1204453→141572 ns (**8.51x**) — processOutColorLocations: 670585→79831 ns (**8.40x**) — forceSupporterOutput: 18666→10959 ns (**1.70x**) — process_sampler_buffer: 3613421→169942 ns (**21.26x**) — find_uniform_insert_pos: 3482948→18772 ns (**185.54x**) — has_texture_query_lod_def: 832533→23427 ns (**35.54x**) — has_temporal_filter_def: 830172→22549 ns (**36.82x**).
 - التكافؤ: 12/12 ملفًا متطابقًا بايت-ببايت على الدوال الثماني.
 - **غير مقيس بعد**: الأداء على الجهاز الفعلي (مرحلة 2) — لا تدّعِ أرقام FPS قبل قياسها.

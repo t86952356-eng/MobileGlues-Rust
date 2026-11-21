@@ -150,7 +150,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
 # ----------------------------------------------------------------------------
 set(MG_ENABLE_RUST ON CACHE BOOL "Build and link the mobileglues-rs Rust core")
 
-if(MG_ENABLE_RUST AND ANDROID)
+if(MG_ENABLE_RUST)
     find_program(MG_CARGO_EXE cargo)
     if(NOT MG_CARGO_EXE)
         message(WARNING "cargo not found — building WITHOUT the Rust core; the C++ fallback paths will be used")
@@ -158,36 +158,52 @@ if(MG_ENABLE_RUST AND ANDROID)
     endif()
 endif()
 
-if(MG_ENABLE_RUST AND ANDROID)
+# Resolve the Rust target triple for the platform being built.
+if(MG_ENABLE_RUST)
     set(MG_RS_TRIPLE "")
-    if(ANDROID_ABI STREQUAL "arm64-v8a")
-        set(MG_RS_TRIPLE aarch64-linux-android)
-    elseif(ANDROID_ABI STREQUAL "armeabi-v7a")
-        set(MG_RS_TRIPLE armv7-linux-androideabi)
-    elseif(ANDROID_ABI STREQUAL "x86_64")
-        set(MG_RS_TRIPLE x86_64-linux-android)
-    elseif(ANDROID_ABI STREQUAL "x86")
-        set(MG_RS_TRIPLE i686-linux-android)
-    else()
+    if(ANDROID)
+        if(ANDROID_ABI STREQUAL "arm64-v8a")
+            set(MG_RS_TRIPLE aarch64-linux-android)
+        elseif(ANDROID_ABI STREQUAL "armeabi-v7a")
+            set(MG_RS_TRIPLE armv7-linux-androideabi)
+        elseif(ANDROID_ABI STREQUAL "x86_64")
+            set(MG_RS_TRIPLE x86_64-linux-android)
+        elseif(ANDROID_ABI STREQUAL "x86")
+            set(MG_RS_TRIPLE i686-linux-android)
+        endif()
+    elseif(UNIX AND NOT APPLE)
+        # Host Linux build (used for development and the rsdiff host check).
+        if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64)$")
+            set(MG_RS_TRIPLE x86_64-unknown-linux-gnu)
+        elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+            set(MG_RS_TRIPLE aarch64-unknown-linux-gnu)
+        endif()
+    endif()
+    if(ANDROID AND NOT MG_RS_TRIPLE)
         message(WARNING "Unknown ANDROID_ABI '${ANDROID_ABI}' — building WITHOUT the Rust core")
     endif()
 endif()
 
-if(MG_ENABLE_RUST AND ANDROID AND MG_RS_TRIPLE)
-    # API level: from ANDROID_PLATFORM (e.g. "android-21"), defaulting to 21
-    # (the AAR minSdk) when the variable is absent.
-    string(REGEX REPLACE "android-" "" _rs_api "${ANDROID_PLATFORM}")
-    if(NOT _rs_api MATCHES "^[0-9]+$")
-        set(_rs_api 21)
-    endif()
+if(MG_ENABLE_RUST AND MG_RS_TRIPLE)
+    if(ANDROID)
+        # API level: from ANDROID_PLATFORM (e.g. "android-21"), defaulting to
+        # 21 (the AAR minSdk) when the variable is absent.
+        string(REGEX REPLACE "android-" "" _rs_api "${ANDROID_PLATFORM}")
+        if(NOT _rs_api MATCHES "^[0-9]+$")
+            set(_rs_api 21)
+        endif()
 
-    # Cargo needs a linker executable; point it at a tiny wrapper that calls
-    # the NDK clang with the right --target so we do not have to guess the
-    # per-triple wrapper script names for every NDK revision.
-    get_filename_component(_rs_clang_dir "${CMAKE_C_COMPILER}" DIRECTORY)
-    set(_rs_linker "${CMAKE_CURRENT_BINARY_DIR}/rust-linker-${MG_RS_TRIPLE}.sh")
-    file(WRITE "${_rs_linker}" "#!/bin/sh\nexec \"${_rs_clang_dir}/clang\" --target=${MG_RS_TRIPLE}${_rs_api} \"\$@\"\n")
-    file(CHMOD "${_rs_linker}" PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+        # Cargo needs a linker executable; point it at a tiny wrapper that
+        # calls the NDK clang with the right --target so we do not have to
+        # guess the per-triple wrapper script names for every NDK revision.
+        get_filename_component(_rs_clang_dir "${CMAKE_C_COMPILER}" DIRECTORY)
+        set(_rs_linker "${CMAKE_CURRENT_BINARY_DIR}/rust-linker-${MG_RS_TRIPLE}.sh")
+        file(WRITE "${_rs_linker}" "#!/bin/sh\nexec \"${_rs_clang_dir}/clang\" --target=${MG_RS_TRIPLE}${_rs_api} \"\$@\"\n")
+        file(CHMOD "${_rs_linker}" PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+    else()
+        # Host build: the project's own C++ compiler links the Rust core.
+        set(_rs_linker "${CMAKE_CXX_COMPILER}")
+    endif()
 
     string(TOUPPER "${MG_RS_TRIPLE}" _rs_triple_upper)
     string(REPLACE "-" "_" _rs_linker_env "CARGO_TARGET_${_rs_triple_upper}_LINKER")
@@ -218,9 +234,9 @@ if(MG_ENABLE_RUST AND ANDROID AND MG_RS_TRIPLE)
     add_dependencies(${CMAKE_PROJECT_NAME} mobileglues_rs_build)
     target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE mobileglues_rs)
     target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE MG_RS_INTEGRATED=1)
-    message(STATUS "mobileglues-rs: enabled for ${MG_RS_TRIPLE} (api ${_rs_api})")
+    message(STATUS "mobileglues-rs: enabled for ${MG_RS_TRIPLE}")
 else()
-    message(STATUS "mobileglues-rs: disabled (non-Android build or cargo unavailable); C++ fallback paths will be used")
+    message(STATUS "mobileglues-rs: disabled (platform without a triple or cargo unavailable); C++ fallback paths will be used")
 endif()
 
 if (NOT MSVC)
