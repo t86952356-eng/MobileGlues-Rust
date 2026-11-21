@@ -2,21 +2,63 @@ name: MobileGlues
 
 on:
   push:
-    branches: 
+    branches:
       - main
       - dev
+    paths-ignore:
+      - "**.md"
+  pull_request:
   workflow_dispatch:
+  workflow_call:
 
 jobs:
-  build:
-
+  # The Rust core must prove itself before any APK is built:
+  # 1) cargo test (unit tests, including the regex-semantics ports)
+  # 2) rsdiff: byte-for-byte equivalence against the ORIGINAL std::regex
+  #    implementations over the committed corpus + measured benchmarks.
+  #    A single mismatched byte fails the build.
+  rust-core:
+    name: Rust core (tests + diff vs std::regex)
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
         with:
-          submodules: recursive
+          path: ~/.cargo/registry
+          key: rsdiff-cargo-${{ runner.os }}-${{ hashFiles('MobileGlues/MobileGlues-cpp/rust/Cargo.toml') }}
+
+      - name: Unit tests
+        run: cargo test --manifest-path MobileGlues/MobileGlues-cpp/rust/Cargo.toml --release
+
+      - name: Build host staticlib
+        run: cargo build --release --manifest-path MobileGlues/MobileGlues-cpp/rust/Cargo.toml
+
+      - name: Differential equivalence & benchmark
+        run: |
+          g++ -O2 -std=c++20 -o rsdiff tools/rsdiff/rsdiff.cpp \
+            MobileGlues/MobileGlues-cpp/rust/target/release/libmobileglues_rs.a \
+            -lpthread -ldl
+          ./rsdiff tools/rsdiff/corpus | tee rsdiff_report.txt
+
+      - name: Upload rsdiff report
+        uses: actions/upload-artifact@v4
+        with:
+          name: rsdiff-report
+          path: rsdiff_report.txt
+
+  build:
+    name: Build APK
+    needs: rust-core
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
       - name: Set current date as env variable
         run: echo "date_today=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
@@ -39,6 +81,11 @@ jobs:
           echo "y" | sdkmanager "ndk;27.3.13750724"
           echo "ndk.dir=$ANDROID_HOME/ndk/27.3.13750724" >> local.properties
 
+      - name: Set up Rust + Android targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android
+
       - name: Change wrapper permissions
         run: chmod +x ./gradlew
 
@@ -52,5 +99,5 @@ jobs:
       - name: Upload apk
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.repository_name }}_${{ env.date_today }}_${{ github.sha }}
-          path: app/build/outputs/apk/release/
+          name: mobileglues-apk
+          path: app/build/outputs/apk/release/*.apk

@@ -1,0 +1,119 @@
+name: Publish Release
+
+on:
+  push:
+    tags:
+      - "*"
+    branches:
+      - "main"
+  workflow_dispatch:
+
+# Avoid double runs when a tag push follows a main push for the same release.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+# Creating a release / uploading assets needs contents write permission.
+permissions:
+  contents: write
+
+jobs:
+  # Resolve the version from version_map.json[0] and skip when the release
+  # for that version already has assets (same guard the FCL project uses).
+  prepare:
+    name: Prepare
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve tag
+        id: meta
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            tag="${{ github.ref_name }}"
+          else
+            tag=$(python3 -c "import json;print(json.load(open('version_map.json'))[0]['versionName'])")
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Check existing release
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          assets=$(gh release view "$TAG" --repo "${{ github.repository }}" --json assets --jq '.assets | length' 2>/dev/null || echo 0)
+          if [ "${assets:-0}" -gt 0 ]; then
+            echo "Release $TAG already has $assets assets, skipping duplicate build"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Runs the full mg.yml pipeline: Rust unit tests + rsdiff equivalence gate,
+  # then the Gradle build with the Rust core linked for all four ABIs.
+  build:
+    needs: prepare
+    if: needs.prepare.outputs.skip != 'true'
+    uses: ./.github/workflows/mg.yml
+    secrets: inherit
+
+  release:
+    needs: [prepare, build]
+    if: needs.prepare.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download apk
+        uses: actions/download-artifact@v6
+        with:
+          name: mobileglues-apk
+          path: apk
+
+      - name: Download rsdiff report
+        uses: actions/download-artifact@v6
+        with:
+          name: rsdiff-report
+          path: rsdiff
+
+      - name: Extract changelog for current version
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          awk -v tag="$TAG" '
+            $0 ~ "^## \\[" tag "\\]" { found = 1; next }
+            found && $0 ~ "^## \\[" { exit }
+            found { print }
+          ' CHANGELOG.md > RELEASE_BODY.md
+          if [ ! -s RELEASE_BODY.md ]; then
+            echo "MobileGlues-RS $TAG" > RELEASE_BODY.md
+          fi
+
+      # Full source archive of the exact release commit (the renderer is
+      # vendored into this repository, so the archive is self-contained).
+      - name: Create source zip
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          git archive --format=zip --prefix="MobileGlues-RS-${TAG}/" -o "MobileGlues-RS-${TAG}-source.zip" HEAD
+          cp apk/app-release.apk "MobileGlues-RS-${TAG}.apk"
+          cp rsdiff/rsdiff_report.txt "rsdiff-report-${TAG}.txt"
+          ls -lh MobileGlues-RS-*
+
+      - name: Release
+        uses: softprops/action-gh-release@v3
+        with:
+          token: ${{ secrets.TOKEN || secrets.GITHUB_TOKEN }}
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          files: |
+            MobileGlues-RS-*.apk
+            MobileGlues-RS-*-source.zip
+            rsdiff-report-*.txt
+          body_path: RELEASE_BODY.md
