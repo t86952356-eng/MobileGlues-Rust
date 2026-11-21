@@ -27,10 +27,15 @@ android {
             // key (same pattern as the FoldCraftLauncher-Elite project):
             // repo secrets win when present, otherwise the committed
             // mg-rs-signing.jks with its fallback password is used.
+            // takeIf{isNotBlank} matters: GitHub Actions exposes unset
+            // secrets as EMPTY env vars, and "" is non-null so the elvis
+            // alone would pass an empty password to the keystore.
+            fun envOrFallback(name: String, fallback: String): String =
+                System.getenv(name)?.takeIf { it.isNotBlank() } ?: fallback
             storeFile = file("../mg-rs-signing.jks")
-            storePassword = System.getenv("SIGNING_STORE_PASSWORD") ?: "mg-rs-release-2025"
-            keyAlias = System.getenv("SIGNING_KEY_ALIAS") ?: "mg-rs"
-            keyPassword = System.getenv("SIGNING_KEY_PASSWORD") ?: "mg-rs-release-2025"
+            storePassword = envOrFallback("SIGNING_STORE_PASSWORD", "mg-rs-release-2025")
+            keyAlias = envOrFallback("SIGNING_KEY_ALIAS", "mg-rs")
+            keyPassword = envOrFallback("SIGNING_KEY_PASSWORD", "mg-rs-release-2025")
         }
     }
 
