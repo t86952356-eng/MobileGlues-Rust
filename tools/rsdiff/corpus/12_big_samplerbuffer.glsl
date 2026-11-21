@@ -1,0 +1,75 @@
+#version 400
+
+uniform isamplerBuffer chunkData;
+uniform isamplerBuffer buffer0;
+uniform isamplerBuffer buffer1;
+uniform isamplerBuffer buffer2;
+uniform isamplerBuffer buffer3;
+uniform isamplerBuffer buffer4;
+uniform isamplerBuffer buffer5;
+uniform isamplerBuffer buffer6;
+uniform isamplerBuffer buffer7;
+uniform isamplerBuffer buffer8;
+uniform isamplerBuffer buffer9;
+uniform isamplerBuffer buffer10;
+uniform isamplerBuffer buffer11;
+uniform isamplerBuffer buffer12;
+uniform isamplerBuffer buffer13;
+uniform isamplerBuffer buffer14;
+uniform isamplerBuffer buffer15;
+
+flat in int index;
+layout(location = 0) out vec4 fragColor;
+
+void main() {
+    ivec4 acc = texelFetch(chunkData, index);
+    acc += texelFetch(buffer0, index + 0);
+    acc -= texelFetch(buffer0, index * 1);
+    acc ^= texelFetch(buffer3, index >> 0);
+    acc += texelFetch(buffer1, index + 1);
+    acc -= texelFetch(buffer1, index * 2);
+    acc ^= texelFetch(buffer4, index >> 1);
+    acc += texelFetch(buffer2, index + 2);
+    acc -= texelFetch(buffer2, index * 3);
+    acc ^= texelFetch(buffer5, index >> 2);
+    acc += texelFetch(buffer3, index + 3);
+    acc -= texelFetch(buffer3, index * 4);
+    acc ^= texelFetch(buffer6, index >> 3);
+    acc += texelFetch(buffer4, index + 4);
+    acc -= texelFetch(buffer4, index * 5);
+    acc ^= texelFetch(buffer7, index >> 0);
+    acc += texelFetch(buffer5, index + 5);
+    acc -= texelFetch(buffer5, index * 6);
+    acc ^= texelFetch(buffer8, index >> 1);
+    acc += texelFetch(buffer6, index + 6);
+    acc -= texelFetch(buffer6, index * 7);
+    acc ^= texelFetch(buffer9, index >> 2);
+    acc += texelFetch(buffer7, index + 7);
+    acc -= texelFetch(buffer7, index * 8);
+    acc ^= texelFetch(buffer10, index >> 3);
+    acc += texelFetch(buffer8, index + 8);
+    acc -= texelFetch(buffer8, index * 9);
+    acc ^= texelFetch(buffer11, index >> 0);
+    acc += texelFetch(buffer9, index + 9);
+    acc -= texelFetch(buffer9, index * 10);
+    acc ^= texelFetch(buffer12, index >> 1);
+    acc += texelFetch(buffer10, index + 10);
+    acc -= texelFetch(buffer10, index * 11);
+    acc ^= texelFetch(buffer13, index >> 2);
+    acc += texelFetch(buffer11, index + 11);
+    acc -= texelFetch(buffer11, index * 12);
+    acc ^= texelFetch(buffer14, index >> 3);
+    acc += texelFetch(buffer12, index + 12);
+    acc -= texelFetch(buffer12, index * 13);
+    acc ^= texelFetch(buffer15, index >> 0);
+    acc += texelFetch(buffer13, index + 13);
+    acc -= texelFetch(buffer13, index * 14);
+    acc ^= texelFetch(buffer0, index >> 1);
+    acc += texelFetch(buffer14, index + 14);
+    acc -= texelFetch(buffer14, index * 15);
+    acc ^= texelFetch(buffer1, index >> 2);
+    acc += texelFetch(buffer15, index + 15);
+    acc -= texelFetch(buffer15, index * 16);
+    acc ^= texelFetch(buffer2, index >> 3);
+    fragColor = vec4(acc) / 255.0;
+}
