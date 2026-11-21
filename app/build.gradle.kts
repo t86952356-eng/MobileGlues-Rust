@@ -14,18 +14,23 @@ android {
         applicationId = "com.fcl.plugin.mobileglues"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2000
-        versionName = "2.0.0"
+        versionCode = 2010
+        versionName = "2.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
         create("release") {
-            storeFile = file("../keystore.jks")
-            storePassword = System.getenv("SIGNING_STORE_PASSWORD") ?: project.findProperty("SIGNING_STORE_PASSWORD") as String?
-            keyAlias = System.getenv("SIGNING_KEY_ALIAS") ?: project.findProperty("SIGNING_KEY_ALIAS") as String?
-            keyPassword = System.getenv("SIGNING_KEY_PASSWORD") ?: project.findProperty("SIGNING_KEY_PASSWORD") as String?
+            // MobileGlues-RS fork signing: the upstream keystore password is
+            // not public, so releases of this fork are signed with their own
+            // key (same pattern as the FoldCraftLauncher-Elite project):
+            // repo secrets win when present, otherwise the committed
+            // mg-rs-signing.jks with its fallback password is used.
+            storeFile = file("../mg-rs-signing.jks")
+            storePassword = System.getenv("SIGNING_STORE_PASSWORD") ?: "mg-rs-release-2025"
+            keyAlias = System.getenv("SIGNING_KEY_ALIAS") ?: "mg-rs"
+            keyPassword = System.getenv("SIGNING_KEY_PASSWORD") ?: "mg-rs-release-2025"
         }
     }
 
@@ -40,10 +45,10 @@ android {
         }
 
         configureEach {
-            resValue("string","app_name","MobileGlues")
+            resValue("string","app_name","MobileGlues-RS")
 
-            manifestPlaceholders["des"] = "MobileGlues (OpenGL 4.0, 1.17+)"
-            manifestPlaceholders["renderer"] = "MobileGlues:libmobileglues.so:libmobileglues.so"
+            manifestPlaceholders["des"] = "MobileGlues-RS (OpenGL 4.0, 1.17+)"
+            manifestPlaceholders["renderer"] = "MobileGlues-RS:libmobileglues.so:libmobileglues.so"
 
             manifestPlaceholders["minMCVer"] = "1.17"
             manifestPlaceholders["maxMCVer"] = "" //为空则不限制 No restriction if empty
@@ -63,8 +68,8 @@ android {
             manifestPlaceholders["pojavEnv"] = mutableMapOf<String,String>().apply {
                 put("LIBGL_ES", "3")
                 put("POJAV_RENDERER", "opengles3")
-				put("POJAVEXEC_EGL", "libmobileglues.so")
-				put("LIBGL_EGL", "libmobileglues.so")
+                                put("POJAVEXEC_EGL", "libmobileglues.so")
+                                put("LIBGL_EGL", "libmobileglues.so")
                 put("MG_COUNT_LAUNCH", "1")
             }.run {
                 var env = ""
