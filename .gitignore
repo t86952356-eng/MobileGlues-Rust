@@ -25,3 +25,6 @@ google-services.json
 
 # Android Profiling
 *.hprof
+# MobileGlues renderer vendored into this repo
+# (was a submodule at MobileGL-Dev/MobileGlues@f56af31d3e490d95808b3adc4ace20234249a37a, branch plugin)
+MobileGlues/build
