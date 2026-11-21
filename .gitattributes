@@ -1,0 +1,12 @@
+# GitHub Linguist overrides — what the repository language bar should count.
+#
+# The MobileGlues/ tree is vendored upstream source: it used to be a git
+# submodule pointing at MobileGL-Dev/MobileGlues@f56af31 (branch "plugin")
+# and was vendored into this repository to make it self-contained. Keeping
+# it out of the statistics makes the language bar reflect this fork's own
+# code instead of ~8.7 MB of upstream C++ that would drown everything else.
+MobileGlues/** linguist-vendored
+
+# Exception: the mobileglues-rs Rust core is this project's own code and
+# must always be counted (later lines take precedence over earlier ones).
+MobileGlues/MobileGlues-cpp/rust/** linguist-vendored=false
