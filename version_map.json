@@ -1,0 +1,20 @@
+[
+  {
+    "type": "release",
+    "versionCode": 2010,
+    "versionName": "2.1.0",
+    "date": "2026.11.21",
+    "description": [
+      {
+        "lang": "en",
+        "text": "First hybrid C++/Rust milestone: the GLSL translation pipeline's eight text passes (layout binding removal, outColor locations, version detection, precision injection, texelFetch rewrites, uniform insertion scan, two definition probes) now run in Rust, byte-for-byte identical to the original std::regex implementations and 1.7x-185x faster (measured). Automatic C++ fallback on any Rust failure; no graphics quality, render distance, resolution or feature was reduced."
+      },
+      {
+        "lang": "ar",
+        "text": "أول مرحلة هجينة C++/Rust: مراحل معالجة النصوص الثماني في مسار ترجمة GLSL تعمل الآن بلغة Rust — إزالة layout binding، مواقع outColor، كشف الإصدار، حقن precision، إعادة كتابة texelFetch، مسح مواضع الإدراج، ومسبارا التعريف — بمخرجات مطابقة بايت-ببايت للتنفيذ الأصلي std::regex وأسرع بـ1.7 إلى 185 مرة (مقاسة فعليًا). احتياطي C++ تلقائي عند أي فشل، دون أي خفض للجودة أو مسافة العرض أو الدقة أو تعطيل ميزات."
+      }
+    ],
+    "apkUrl": "https://github.com/t86952356-eng/MobileGlues-Rust/releases/download/2.1.0/MobileGlues-RS-2.1.0.apk",
+    "sourceUrl": "https://github.com/t86952356-eng/MobileGlues-Rust/releases/download/2.1.0/MobileGlues-RS-2.1.0-source.zip"
+  }
+]
