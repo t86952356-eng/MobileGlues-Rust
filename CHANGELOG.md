@@ -4,19 +4,21 @@
 
 ### العربية
 
-- فُصل المستودع عن شبكة الـfork الخاصة بـ`MobileGL-Dev/MobileGlues-plugin` ليصبح مستودعًا مستقلًا، وفق الخطوات اليدوية الرسمية الموثقة من GitHub (استنساخ bare ← حذف المستودع ← إعادة إنشائه بنفس الاسم ← دفع mirror). السبب: GitHub لا يعيد حساب نسب اللغات في مستودعات الـfork، فبقيت إحصائيات اللغة مجمّدة على حالة المستودع الأصل (Kotlin/C++/Python) ولا تظهر نسبة Rust إطلاقًا رغم وجود نواة `mobileglues-rs` في مسار التنفيذ منذ 2.1.0. سجل git والوسم `2.1.0` لم يتغيرا (نفس مُعرّفات SHA بالضبط)، وأصول الإصدار أُعيد بناؤها آليًا من نفس الكوميت عبر سير النشر.
+- فُصل المستودع عن شبكة الـfork الخاصة بـ`MobileGL-Dev/MobileGlues-plugin` ليصبح مستودعًا مستقلًا، وفق الخطوات اليدوية الرسمية الموثقة من GitHub (استنساخ bare ← حذف المستودع ← إعادة إنشائه بنفس الاسم ← دفع mirror). السبب: GitHub لا يعيد حساب نسب اللغات في مستودعات الـfork، فبقيت إحصائيات اللغة مجمّدة على حالة المستودع الأصل (Kotlin/C++/Python) ولا تظهر نسبة Rust إطلاقًا رغم وجود نواة `mobileglues-rs` في مسار التنفيذ منذ 2.1.0. سجل git والوسم `2.1.0` لم يتغيرا (نفس مُعرّفات SHA بالضبط)، وأصول الإصدار أُعيد بناؤها آليًا عبر سير النشر.
 - أُضيف `.gitattributes` لتحديد ما يُحتسب في شريط اللغات بدقة: شجرة العارض المتتبعة `MobileGlues/` (مصدر upstream المنقول) تُعد `linguist-vendored` فتُستبعد من النِّسب، بينما نواة Rust الخاصة بالمشروع `MobileGlues/MobileGlues-cpp/rust/` تُحتسب دائمًا — فيظهر Rust بنسبة واضحة (~7%) بجانب Kotlin بدل أن يغرق كود upstream المنقول (8.7MB من C++) النِّسب كلها.
 
 ### English
 
-- Detached the repository from the `MobileGL-Dev/MobileGlues-plugin` fork network into a standalone repository, following GitHub's documented manual steps (bare clone -> delete -> recreate with the same name -> mirror push). Reason: GitHub never recalculates language statistics for forks, so the language bar stayed frozen at the parent's state (Kotlin/C++/Python) with no Rust percentage at all, despite the `mobileglues-rs` core shipping in the execution path since 2.1.0. The git history and the `2.1.0` tag are unchanged (exact same SHAs), and the release assets were rebuilt automatically from the same commit by the publish workflow.
+- Detached the repository from the `MobileGL-Dev/MobileGlues-plugin` fork network into a standalone repository, following GitHub's documented manual steps (bare clone -> delete -> recreate with the same name -> mirror push). Reason: GitHub never recalculates language statistics for forks, so the language bar stayed frozen at the parent's state (Kotlin/C++/Python) with no Rust percentage at all, despite the `mobileglues-rs` core shipping in the execution path since 2.1.0. The git history and the `2.1.0` tag are unchanged (exact same SHAs), and the release assets were rebuilt automatically by the publish workflow.
 - Added a `.gitattributes` to define exactly what the language bar counts: the vendored renderer tree `MobileGlues/` (upstream source vendored into this repo) is marked `linguist-vendored` and excluded from the statistics, while this project's own Rust core `MobileGlues/MobileGlues-cpp/rust/` is always counted — so Rust shows up as a clear percentage (~7%) next to Kotlin instead of being buried by the 8.7 MB of vendored upstream C++.
 
 ### Validation
 
-- Post-detach language statistics (GitHub `/languages` API) now list Rust — verify at https://github.com/t86952356-eng/MobileGlues-Rust after the stats job finishes (typically a few minutes after push).
-- `git ls-remote` after the mirror push matches the pre-detach snapshot exactly: `refs/heads/main` = `0edfce1`, `refs/tags/2.1.0` = `faa11b9` (annotated tag object).
-- Release 2.1.0 assets rebuilt automatically from commit `faa11b9` by the Publish Release workflow on the standalone repository (APK + source ZIP + rsdiff report).
+- Verified post-detach language statistics (GitHub `/languages` API, 2026-11-21): Kotlin 79.76%, **Rust 6.47%**, C++ 5.60%, GLSL 5.18%, Python 2.65%, plus small remainders — the language bar at https://github.com/t86952356-eng/MobileGlues-Rust now shows Rust clearly.
+- `.gitattributes` semantics confirmed before pushing via `git check-attr` (rust/ core un-vendored, MobileGlues/ tree vendored) and against linguist's own source (attributes resolved by the libgit2 engine; the value "false" explicitly cancels vendoring).
+- Operational lesson: GitHub's per-push stats jobs can be dropped from the queue (three consecutive pushes here produced no update despite a correct file); the initial analysis of a freshly created repository always runs and is fast — a second recreate (tag first, then main) landed the correct statistics in under 40 seconds.
+- Second operational lesson: pushing a large pack to a brand-new empty repository can fail with a thin-pack error ("did not receive expected object") — push from a bare clone of the remote (or use `--no-thin`) instead of the working clone.
+- `git ls-remote` matches the pre-detach snapshot: `refs/tags/2.1.0` = `faa11b98` (lightweight tag, untouched), `refs/heads/main` at the current branch head.
 
 ## [2.1.0] - 2026-11-21
 
