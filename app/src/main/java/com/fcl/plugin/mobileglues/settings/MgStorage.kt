@@ -53,6 +53,12 @@ interface MgStorage {
     /** GLSL 缓存文件的字节数；文件不存在为 null。 */
     fun glslCacheBytes(): Long?
 
+    /**
+     * 读 native 库写的性能报告 `perf_report.txt`（游戏内诊断记录）；
+     * 文件不存在或读不动时返回 null。只有用户在设置里开启 perfLog 并进过游戏才会生成。
+     */
+    fun readPerfReport(): String?
+
     @Throws(IOException::class)
     fun deleteGlslCache()
 
@@ -90,6 +96,9 @@ class DirectMgStorage(private val root: File) : MgStorage {
 
     override fun readStats(): String? =
         runCatching { File(root, STATS_FILE_NAME).takeIf { it.isFile }?.readText() }.getOrNull()
+
+    override fun readPerfReport(): String? =
+        runCatching { File(root, PERF_REPORT_FILE_NAME).takeIf { it.isFile }?.readText() }.getOrNull()
 
     override fun glslCacheBytes(): Long? = glslCacheFile.takeIf { it.isFile }?.length()
 
@@ -183,6 +192,13 @@ class SafMgStorage(
         }
     }.getOrNull()
 
+    override fun readPerfReport(): String? = runCatching {
+        val doc = child(PERF_REPORT_FILE_NAME)?.takeIf { it.isFile } ?: return null
+        appContext.contentResolver.openInputStream(doc.uri)?.use { input ->
+            input.readBytes().toString(Charsets.UTF_8)
+        }
+    }.getOrNull()
+
     override fun glslCacheBytes(): Long? =
         child(GLSL_CACHE_FILE_NAME)?.takeIf { it.isFile }?.length()
 
@@ -215,6 +231,8 @@ internal const val GLSL_CACHE_FILE_NAME = "glsl_cache.tmp"
 internal const val STATS_FILE_NAME = "stats.json"
 internal const val LOG_FILE_NAME = "latest.log"
 internal const val GL_CALLS_FILE_NAME = "glcalls.txt"
+internal const val PERF_REPORT_FILE_NAME = "perf_report.txt"
+internal const val PERF_HISTORY_FILE_NAME = "perf_history.log"
 internal const val CORRUPT_BACKUP_SUFFIX = ".corrupt"
 private const val CONFIG_TEMP_FILE_NAME = CONFIG_FILE_NAME + ".tmp"
 
@@ -232,6 +250,9 @@ internal val KNOWN_MG_FILE_NAMES = listOf(
     STATS_FILE_NAME,
     LOG_FILE_NAME,
     GL_CALLS_FILE_NAME,
+    PERF_REPORT_FILE_NAME,
+    PERF_REPORT_FILE_NAME + ".tmp",
+    PERF_HISTORY_FILE_NAME,
 )
 
 /**

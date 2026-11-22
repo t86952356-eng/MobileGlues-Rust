@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Arabic strings for the additions of the MobileGlues-RS fork (performance log).
+  Only the keys this fork added live here; everything else falls back to the
+  default (English) resources, exactly how Android partial translations work.
+-->
+<resources>
+    <string name="settings_group_diagnostics">التشخيص</string>
+    <string name="option_perf_log">سجل الأداء</string>
+    <string name="option_perf_log_summary">يسجّل معدل الإطارات وزمنها وإحصاءات الرسم والشيدرات والذاكرات أثناء اللعب (MG/perf_report.txt). يسري بدءًا من الدخول القادم للعبة. تكلفته ضئيلة؛ أوقفه عند عدم الحاجة.</string>
+    <string name="perf_report_share">مشاركة تقرير الأداء</string>
+    <string name="perf_report_share_summary">أرسل آخر تقرير من داخل اللعبة إلى المطوّر لتحديد أولوية التحسينات القادمة</string>
+    <string name="perf_report_missing">لا يوجد تقرير بعد: فعّل سجل الأداء والعب دقيقة واحدة ثم عد للمشاركة.</string>
+    <string name="perf_report_share_via">مشاركة التقرير عبر</string>
+</resources>

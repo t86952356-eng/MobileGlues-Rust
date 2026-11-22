@@ -216,6 +216,13 @@ Please note, this action is <b><font color="@colorError">irreversible</font></b>
     <string name="settings_group_render">Rendering</string>
     <string name="settings_group_cache">Shader cache</string>
     <string name="settings_group_ext">Extensions</string>
+    <string name="settings_group_diagnostics">Diagnostics</string>
+    <string name="option_perf_log">Performance log</string>
+    <string name="option_perf_log_summary">Records FPS, frame times, draw/shader/buffer stats while you play (MG/perf_report.txt). Takes effect from the next game launch. Tiny overhead; keep it off when not needed.</string>
+    <string name="perf_report_share">Share performance report</string>
+    <string name="perf_report_share_summary">Send the latest in-game report to the developer to guide optimization</string>
+    <string name="perf_report_missing">No report yet. Turn the log on, play for a minute, then try again.</string>
+    <string name="perf_report_share_via">Share report via</string>
     <string name="settings_group_advanced">Advanced</string>
     <string name="ui_style">UI style</string>
     <string name="ui_style_material" translatable="false">Material</string>

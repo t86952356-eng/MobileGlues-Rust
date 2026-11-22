@@ -16,6 +16,7 @@
 #include <iostream>
 #include "../config/settings.h"
 #include "drawing.h"
+#include "perf.h"
 
 #define DEBUG 0
 
@@ -173,6 +174,7 @@ void glGetProgramiv(GLuint program, GLenum pname, GLint* params) {
 void glUseProgram(GLuint program) {
     LOG()
     LOG_D("glUseProgram(%d)", program)
+    MG_PERF_PROGRAM(1);
     if (program != gl_state->current_program) {
         gl_state->current_program = program;
         GLES.glUseProgram(program);

@@ -210,6 +210,20 @@ private fun ConfigSections(controller: AppController, config: MGConfig) {
             )
         }
 
+        MiuixGroup(title = stringResource(R.string.settings_group_diagnostics)) {
+            MiuixSwitchRow(
+                title = stringResource(R.string.option_perf_log),
+                summary = stringResource(R.string.option_perf_log_summary),
+                checked = config.perfLog,
+                onCheckedChange = controller::setPerfLog,
+            )
+            MiuixArrowRow(
+                title = stringResource(R.string.perf_report_share),
+                summary = stringResource(R.string.perf_report_share_summary),
+                onClick = controller::sharePerfReport,
+            )
+        }
+
         MiuixGroup(title = stringResource(R.string.settings_group_advanced)) {
             OptionRow(
                 title = stringResource(R.string.option_custom_gl_version),

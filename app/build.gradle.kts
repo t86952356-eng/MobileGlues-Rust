@@ -14,8 +14,8 @@ android {
         applicationId = "com.fcl.plugin.mobileglues"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2010
-        versionName = "2.1.0"
+        versionCode = 2020
+        versionName = "2.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

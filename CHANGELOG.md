@@ -1,6 +1,39 @@
 # Changelog
 
-## [Unreleased]
+## [2.2.0] - 2026-11-22
+
+### العربية
+
+- **ميزة «سجل الأداء» (perfLog) — اقتراح المستخدم**: خيار جديد في تطبيق الإضافة (مجموعة «التشخيص») يفعّل تسجيل ما يفعله العارض داخل اللعبة، ليعرف المطور التالي ما الذي يجب تحسينه بأرقام حقيقية من الجهاز لا بتخمين. بعد التفعيل والدخول للعبة يكتب العارض ملفين في مجلد MG:
+  - `perf_report.txt`: لقطة كاملة تُحدَّث كل 10 ثوانٍ (كتابة ذرّية tmp+rename فلن تُقرأ أبدًا ناقصة) تشمل: هوية الجهاز الفعلية من التعريفات الخلفية، حالة نواة Rust، إعدادات الجلسة كاملة، توزيع زمن الإطار (المتوسط/p50/p90/p95/p99/الأقصى + متوسط FPS + 1% low)، وعدادات نداءات GL للإطار الواحد وللثانية الواحدة: نداءات الرسم المفردة ودفعات multidraw وعدد رسماتها الفرعية والعدد الفعلي للرسمات، نداءات وبايتات رفع المخازن (glBufferData/glBufferSubData) والقوام، تغييرات الحالة (glEnable/glDisable)، وتبديل البرامج (glUseProgram)، وقسم الشيدرات: عدد المصادر والمباشرة منها وقرارات الكاش (إصابة/إخفاق + النسبة) وزمن الترجمة الكلي والمتوسط.
+  - `perf_history.log`: سطر CSV لكل نافذة 10 ثوانٍ عبر الجلسة كاملة — بما فيها مرحلة تحميل العالم التي تضيع عادة من اللقطات اللحظية.
+- زر «مشاركة تقرير الأداء» في نفس المجموعة يفتح نافذة مشاركة أندرويد بالتقرير نصًّا خامًا (واتساب/تيليغرام/…) لإرساله للمطور بنقرة واحدة، مع رسالة إرشادية إن لم يوجد تقرير بعد.
+- نقاط القياس مدمجة في المسارات الحقيقية: توقيت الإطارات من نقطة العرض الوحيدة `presentSurface` (تغطي مساري eglSwapBuffers وeglSwapBuffersWithDamage)؛ عدادات الرسم من `prepareForDraw` التي يمر بها كل مدخل رسم (نُقل glDrawArrays من التمرير الماكروي في gl_native.cpp إلى drawing.cpp ليمكن عدّه مع الحفاظ على الاسم البديل glDrawArraysARB)؛ عدادات multidraw من `mg_multidraw_enter`؛ توقيت ترجمة الشيدرات مع تمييز إصابة الكاش داخل `GLSLtoGLSLES`؛ بايتات القوام عبر `pixel_sizeof` الأصلية.
+- صفر تكلفة عند الإيقاف: كل نقطة قياس تتحقق أولًا من علم `mg_perf_active` — فرع واحد متوقع التفرع، والعدادات ذرّية بترتيب relaxed فلا توقف تنفيذًا متوازيًا. الخيار مطفأ افتراضيًا ولا يتغير سلوك الرسم شيئًا مطلقًا (تغيّر واحد محسوب: نقل تعريف glDrawArrays دون أي فرق سلوكي).
+- متغير البيئة `MG_PERF_LOG=1/0` يتجاوز config.json — لتشغيل مقارنات A/B دون فتح التطبيق (نفس فلسفة MG_RS_DISABLE).
+- الاختبار `tests/perf_smoke_test.cpp` (يُبنى ويُشغّل مع `sh tests/run.sh`): يقود العدادات ومجرى العرض ويتحقظ من اكتمال الملفين ومفاتيحهما — نجح محليًا 15/15.
+- ترجمات الواجهة الجديدة بالثلاث: الإنجليزية والصينية + ملف عربي كامل لهذه المفاتيح (أول ترجمة عربية في التطبيق؛ بقية المفاتيح تسقط إلى الإنجليزية كالمعتاد في أندرويد).
+
+### English
+
+- **Performance log (perfLog) feature — user's suggestion**: a new option in the plugin app's "Diagnostics" group records what the renderer does in-game, so the next optimization target is decided from real on-device numbers instead of guesswork. Once enabled, entering a game makes the renderer write two files into the MG directory:
+  - `perf_report.txt`: a complete snapshot rewritten atomically every 10 seconds (tmp+rename, never readable half-written): actual device identity from the backend strings, Rust core status, full session settings, frame-time distribution (avg/p50/p90/p95/p99/max + average FPS + 1% low), and per-frame/per-second GL call counters — single draws, multidraw batches with their sub-draw count and the effective draw total, buffer upload calls and bytes (glBufferData/glBufferSubData), texture upload calls and bytes, state changes (glEnable/glDisable), program switches (glUseProgram) — plus the shader section: sources, direct passthroughs, cache hits/misses with the rate, and total/average translation time.
+  - `perf_history.log`: one CSV line per 10-second window for the whole session — including the world-loading phase that momentary snapshots always lose.
+- A "Share performance report" button in the same group opens the Android share sheet with the report as plain text (WhatsApp/Telegram/...) for one-tap delivery to the developer, with a guidance message when no report exists yet.
+- The measurement points are wired into the real paths: frame timing from the single present choke point `presentSurface` (covers both eglSwapBuffers and eglSwapBuffersWithDamage); draw counters from `prepareForDraw`, which every draw entry crosses (glDrawArrays moved from the macro passthrough in gl_native.cpp into drawing.cpp so it can be counted, keeping the glDrawArraysARB alias); multidraw counters inside `mg_multidraw_enter`; shader translation timing with cache hit/miss discrimination inside `GLSLtoGLSLES`; texture bytes through the original `pixel_sizeof`.
+- Zero cost when off: every hook checks the `mg_perf_active` flag first — one perfectly predicted branch; counters are relaxed-order atomics so nothing stalls concurrent execution. The option defaults to off and changes no rendering behavior (one deliberate, behavior-preserving change: relocating the glDrawArrays definition).
+- The `MG_PERF_LOG=1/0` environment variable overrides config.json — for A/B runs without opening the app (same philosophy as MG_RS_DISABLE).
+- New host test `tests/perf_smoke_test.cpp` (built and run by `sh tests/run.sh`): drives the counters and the present stream, then verifies both files and their keys — passed locally 15/15.
+- UI strings in three languages: English, Chinese, plus a complete Arabic resources file for the new keys (the app's first Arabic strings; every other key falls back to English as Android partial translations do).
+
+### Validation
+
+- Host syntax pass (g++ -std=gnu++20 -fsyntax-only) over every touched translation unit: perf.cpp, settings.cpp, main.cpp, egl.cpp, drawing.cpp, gl_native.cpp, multidraw.cpp, shader.cpp, glsl_for_es.cpp, buffer.cpp, texture.cpp, enable.cpp, program.cpp, getter.cpp — clean.
+- Existing host suites still green after the hooks (`sh tests/run.sh`): pixel-size and framebuffer-shuffle checks all pass.
+- New perf smoke test passed 15/15 locally, producing a well-formed report (verified by reading the generated file: header, device info, rust status, frame stats, all counter sections, window block, history CSV).
+- Full APK build and byte-level verification happen in CI as always (mg.yml builds all four ABIs with the Rust core; publish-release.yml signs and attaches APK + source ZIP + rsdiff report).
+
+## [Unreleased-2026-11-21: repository detach] - 2026-11-21
 
 ### العربية
 

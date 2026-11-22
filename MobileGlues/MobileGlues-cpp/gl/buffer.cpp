@@ -7,6 +7,7 @@
 
 #include "buffer.h"
 #include "../egl/context.h"
+#include "perf.h"
 #include <mutex>
 #include <memory>
 #include <ska/flat_hash_map.hpp>
@@ -1015,6 +1016,7 @@ void glBufferData(GLenum target, GLsizeiptr size, const void* data, GLenum usage
     LOG()
     LOG_D("glBufferData, target = %s, size = %d, data = 0x%x, usage = %s", glEnumToString(target), size, data,
           glEnumToString(usage))
+    MG_PERF_BUFFER(1, size > 0 ? (unsigned long long)size : 0);
     borrowed_target_t t(target);
     GLES.glBufferData(t.target, size, data, usage);
     set_buffer_data_size(find_bound_buffer_by_target(target), size);
@@ -1026,6 +1028,7 @@ void glBufferData(GLenum target, GLsizeiptr size, const void* data, GLenum usage
 void glBufferSubData(GLenum target, GLintptr offset, GLsizeiptr size, const void* data) {
     LOG()
     LOG_D("glBufferSubData, target = %s, offset = %p, size = %zi", glEnumToString(target), (void*)offset, size)
+    MG_PERF_BUFFER(1, size > 0 ? (unsigned long long)size : 0);
     borrowed_target_t t(target);
     GLES.glBufferSubData(t.target, offset, size, data);
     CHECK_GL_ERROR

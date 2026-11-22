@@ -195,6 +195,20 @@ private fun ConfigSections(controller: AppController, config: MGConfig) {
             )
         }
 
+        PreferenceGroup(title = stringResource(R.string.settings_group_diagnostics)) {
+            SwitchPreferenceRow(
+                title = stringResource(R.string.option_perf_log),
+                summary = stringResource(R.string.option_perf_log_summary),
+                checked = config.perfLog,
+                onCheckedChange = controller::setPerfLog,
+            )
+            TextPreferenceRow(
+                title = stringResource(R.string.perf_report_share),
+                summary = stringResource(R.string.perf_report_share_summary),
+                onClick = controller::sharePerfReport,
+            )
+        }
+
         PreferenceGroup(title = stringResource(R.string.settings_group_advanced)) {
             TextPreferenceRow(
                 title = stringResource(R.string.option_custom_gl_version),

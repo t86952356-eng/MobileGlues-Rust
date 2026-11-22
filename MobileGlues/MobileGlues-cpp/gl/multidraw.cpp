@@ -9,6 +9,7 @@
 #include "../config/settings.h"
 #include "buffer.h"
 #include "enable.h"
+#include "perf.h"
 #include "restart.h"
 #include "../egl/context.h"
 #include <algorithm>
@@ -401,6 +402,10 @@ static bool mg_multidraw_enter(const GLsizei* counts, GLenum type, GLsizei primc
         MD_WARN_ONCE("multidraw: indices == NULL");
         return false;
     }
+    // One counter for the batch, one for how many sub-draws it expands to;
+    // the report shows both because "batched but exploded" and "not batched"
+    // need different work.
+    MG_PERF_MULTIDRAWS(1, (unsigned long long)(primcount > 0 ? primcount : 0));
     multidraw_check_context();
     return true;
 }

@@ -17,6 +17,7 @@
 #include "FSR1/FSR1.h"
 #include "log.h"
 #include "mg.h"
+#include "perf.h"
 #include "pixel.h"
 #include "random_string_gen.h"
 #include "../config/settings.h"
@@ -322,6 +323,11 @@ std::string getGpuName() {
 
 void set_es_version() {
     std::string ESVersionStr = getBeforeThirdSpace(std::string((const char*)GLES.glGetString(GL_VERSION)));
+    // The real device identity for the perf report. Unlike glGetString below
+    // (which answers for the game), this reads the backend directly, once per
+    // context initialization, so the report names the actual GPU.
+    mg_perf_set_device_info((const char*)GLES.glGetString(GL_RENDERER),
+                            (const char*)GLES.glGetString(GL_VERSION));
     int major, minor;
 
     if (sscanf(ESVersionStr.c_str(), "OpenGL ES %d.%d", &major, &minor) == 2) {

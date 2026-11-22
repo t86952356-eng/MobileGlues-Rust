@@ -1,6 +1,24 @@
 [
   {
     "type": "release",
+    "versionCode": 2020,
+    "versionName": "2.2.0",
+    "date": "2026.11.22",
+    "description": [
+      {
+        "lang": "en",
+        "text": "In-game performance log (user-requested): a new Diagnostics option in the plugin app makes the renderer record frame times (avg/p50/p95/p99/1% low), draw and multidraw counts, buffer/texture upload bytes, state changes, program switches, and shader translation time with cache hit rate, into MG/perf_report.txt (atomic 10s snapshots) plus MG/perf_history.log (per-window CSV, keeps the world-loading phase). One-tap share button for the report. Zero cost when off; MG_PERF_LOG env override for A/B runs. Arabic UI strings added for the new keys."
+      },
+      {
+        "lang": "ar",
+        "text": "سجل أداء داخل اللعبة (بناءً على اقتراح المستخدم): خيار جديد «التشخيص» في تطبيق الإضافة يجعل العارض يسجّل أزمنة الإطارات (المتوسط/p50/p95/p99/1% low) وعدادات الرسم وmultidraw وبايتات رفع المخازن والقوام وتغييرات الحالة وتبديل البرامج وزمن ترجمة الشيدرات مع نسبة إصابة الكاش، في MG/perf_report.txt (لقطات ذرّية كل 10 ثوانٍ) إضافة إلى MG/perf_history.log (سجل CSV لكل نافذة يحفظ مرحلة تحميل العالم). زر مشاركة بنقرة واحدة، وصفر تكلفة عند الإيقاف، ومتغير MG_PERF_LOG للمقارنات، وترجمة عربية لواجهة الميزة."
+      }
+    ],
+    "apkUrl": "https://github.com/t86952356-eng/MobileGlues-Rust/releases/download/2.2.0/MobileGlues-RS-2.2.0.apk",
+    "sourceUrl": "https://github.com/t86952356-eng/MobileGlues-Rust/releases/download/2.2.0/MobileGlues-RS-2.2.0-source.zip"
+  },
+  {
+    "type": "release",
     "versionCode": 2010,
     "versionName": "2.1.0",
     "date": "2026.11.21",

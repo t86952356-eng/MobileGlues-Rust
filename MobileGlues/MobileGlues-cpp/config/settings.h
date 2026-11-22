@@ -215,6 +215,10 @@ struct global_settings_t {
     Version custom_gl_version;
     FSR1_Quality_Preset fsr1_setting;
     HideMGEnvLevel hide_mg_env_level;
+    // In-game performance recording ("perfLog"): frame times, call and byte
+    // counters, written to MG/perf_report.txt every 10 s. Off by default;
+    // the hook sites cost one predicted branch while off.
+    bool perf_log;
 };
 
 extern global_settings_t global_settings;

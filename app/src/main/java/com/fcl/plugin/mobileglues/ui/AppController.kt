@@ -484,6 +484,34 @@ class AppController(
 
     fun setExtDirectStateAccess(enabled: Boolean) = update { it.copy(extDirectStateAccess = enabled) }
 
+    /**
+     * 游戏内性能记录开关。开启只影响下一次进游戏：渲染器加载时读一次 config.json。
+     */
+    fun setPerfLog(enabled: Boolean) = update { it.copy(perfLog = enabled) }
+
+    /**
+     * 把最近的性能报告以纯文本分享出去（发给开发者分析）。
+     * 报告还没生成时提示用户先带着开关进一次游戏。
+     */
+    fun sharePerfReport() {
+        scope.launch {
+            val report = configStore.readPerfReport()
+            if (report == null) {
+                snackbar(context.getString(R.string.perf_report_missing))
+                return@launch
+            }
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, report)
+            }
+            runCatching {
+                context.startActivity(Intent.createChooser(send, context.getString(R.string.perf_report_share_via)))
+            }.onFailure {
+                snackbar(context.getString(R.string.perf_report_missing))
+            }
+        }
+    }
+
     fun setFsr1(enabled: Boolean) {
         val current = configStore.config.value ?: return
         if (enabled == current.fsr1Enabled) return

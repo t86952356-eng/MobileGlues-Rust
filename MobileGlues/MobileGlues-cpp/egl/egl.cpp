@@ -11,6 +11,7 @@
 #include "../gl/FSR1/FSR1.h"
 #include "../gl/log.h"
 #include "../gl/mg.h"
+#include "../gl/perf.h"
 #include "../gles/loader.h"
 #include "../glx/lookup.h"
 #include "loader.h"
@@ -406,6 +407,9 @@ namespace {
     // check reacts to a surface that has changed size. The three belong together,
     // and every path that presents a frame has to go through here.
     EGLBoolean presentSurface(EGLDisplay dpy, EGLSurface surface) {
+        // Every path that presents a frame goes through here, which makes it
+        // the one place a frame-time sample can be taken for the perf log.
+        mg_perf_frame();
         LOAD_EGL(eglSwapBuffers)
         if (global_settings.fsr1_setting == FSR1_Quality_Preset::Disabled) {
             return egl_eglSwapBuffers(dpy, surface);

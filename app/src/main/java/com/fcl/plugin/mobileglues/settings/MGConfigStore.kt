@@ -200,6 +200,14 @@ class MGConfigStore(
         mutableGlslCacheBytes.value = runCatching { storage?.glslCacheBytes() }.getOrNull()
     }
 
+    /**
+     * 读游戏内性能报告（`MG/perf_report.txt`）。null = 还没有报告（没开过 perfLog 进游戏，
+     * 或还没满第一个 10 秒窗口）。与 [clearGlslCache] 同线程策略：走 IO 调度器。
+     */
+    suspend fun readPerfReport(): String? = withContext(io) {
+        runCatching { storage?.readPerfReport() }.getOrNull()
+    }
+
     /** 把当前配置导出到应用私有目录（供 MGInfoGetter 读取），不影响用户的配置文件。 */
     suspend fun exportTo(file: File): Result<File> = withContext(io) {
         runCatching {

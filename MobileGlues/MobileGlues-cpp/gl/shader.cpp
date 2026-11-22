@@ -16,6 +16,7 @@
 #include "glsl/glsl_for_es.h"
 #include "../config/settings.h"
 #include "FSR1/FSR1.h"
+#include "perf.h"
 
 #define DEBUG 0
 
@@ -79,6 +80,7 @@ void glShaderSource(GLuint shader, GLsizei count, const GLchar* const* string, c
     if (is_direct_shader(glsl_src.c_str())) {
         LOG_D("[INFO] [Shader] Direct shader source: ")
         LOG_D("%s", glsl_src.c_str())
+        MG_PERF_SHADER_SOURCES(1, 1);
         essl_src = glsl_src;
     } else {
         int glsl_version = getGLSLVersion(glsl_src.c_str());
@@ -87,6 +89,7 @@ void glShaderSource(GLuint shader, GLsizei count, const GLchar* const* string, c
         GLint shaderType;
         GLES.glGetShaderiv(shader, GL_SHADER_TYPE, &shaderType);
         int return_code = 0;
+        MG_PERF_SHADER_SOURCES(1, 0);
         essl_src = GLSLtoGLSLES(glsl_src.c_str(), shaderType, hardware->es_version, glsl_version, return_code);
 
         if (essl_src.empty()) {

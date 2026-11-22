@@ -13,6 +13,7 @@
 #include "gl/gl.h"
 #include "gl/log.h"
 #include "gl/mg.h"
+#include "gl/perf.h"
 #include "gles/loader.h"
 #include "includes.h"
 #include <cerrno>
@@ -74,6 +75,10 @@ void proc_init() {
 #if PROFILING
     init_perfetto();
 #endif
+
+    // After the settings are final (config + env overrides resolved): opens
+    // the perf report files when perfLog is on, and is a no-op otherwise.
+    mg_perf_init();
 
     // Cleanup
 #ifndef __APPLE__

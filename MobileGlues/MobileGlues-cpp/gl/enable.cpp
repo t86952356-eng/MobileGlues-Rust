@@ -10,6 +10,7 @@
 #include "../gles/loader.h"
 #include "log.h"
 #include "mg.h"
+#include "perf.h"
 #include "../egl/context.h"
 #include <cstring>
 
@@ -546,12 +547,14 @@ extern "C"
     GLAPI GLAPIENTRY void glEnable(GLenum cap) {
         LOG()
         LOG_D("glEnable, cap = 0x%04x", cap)
+        MG_PERF_STATE(1);
         mg_set_enabled(cap, 0, false, GL_TRUE);
     }
 
     GLAPI GLAPIENTRY void glDisable(GLenum cap) {
         LOG()
         LOG_D("glDisable, cap = 0x%04x", cap)
+        MG_PERF_STATE(1);
         mg_set_enabled(cap, 0, false, GL_FALSE);
     }
 

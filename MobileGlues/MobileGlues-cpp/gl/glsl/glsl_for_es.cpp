@@ -23,6 +23,7 @@
 #include <sstream>
 #include "cache.h"
 #include "../../version.h"
+#include "../perf.h"
 
 #define DEBUG 0
 
@@ -369,9 +370,11 @@ std::string GLSLtoGLSLES(const char* glsl_code, GLenum glsl_type, uint essl_vers
     std::string sha256_string(glsl_code);
     sha256_string += "\n//" + std::to_string(MAJOR) + "." + std::to_string(MINOR) + "." + std::to_string(REVISION) +
                      "|" + std::to_string(essl_version);
+    const unsigned long long perf_t0 = mg_perf_now_ns();
     const char* cachedESSL = Cache::get_instance().get(sha256_string.c_str());
     if (cachedESSL) {
         LOG_D("GLSL Hit Cache:\n%s\n-->\n%s", glsl_code, cachedESSL)
+        mg_perf_add_shader_translate(mg_perf_now_ns() - perf_t0, 1);
         return_code = 0;
         return (char*)cachedESSL;
     }
@@ -384,6 +387,9 @@ std::string GLSLtoGLSLES(const char* glsl_code, GLenum glsl_type, uint essl_vers
         converted = process_uniform_declarations(converted);
         Cache::get_instance().put(sha256_string.c_str(), converted.c_str());
     }
+    // A miss costs the whole translation; the counter carries hit/miss so the
+    // report can show the cache rate next to the time it saved.
+    mg_perf_add_shader_translate(mg_perf_now_ns() - perf_t0, 0);
 
     return (return_code >= 0) ? converted : glsl_code;
 }

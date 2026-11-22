@@ -22,6 +22,7 @@ internal object MGConfigCodec {
     private const val KEY_EXT_COMPUTE_SHADER = "enableExtComputeShader"
     private const val KEY_EXT_DIRECT_STATE_ACCESS = "enableExtDirectStateAccess"
     private const val KEY_GLSL_CACHE = "maxGlslCacheSize"
+    private const val KEY_PERF_LOG = "perfLog"
 
     /**
      * 已废弃的三代旧键：native 不再读取，只会在它们还存在时打弃用警告。
@@ -42,6 +43,7 @@ internal object MGConfigCodec {
         KEY_EXT_COMPUTE_SHADER,
         KEY_EXT_DIRECT_STATE_ACCESS,
         KEY_GLSL_CACHE,
+        KEY_PERF_LOG,
         KEY_MULTIDRAW_LEGACY,
         KEY_MULTIDRAW_DISABLE_LEGACY,
         KEY_MULTIDRAW_ORDER,
@@ -69,6 +71,7 @@ internal object MGConfigCodec {
             extDirectStateAccess = root.boolOrNull(KEY_EXT_DIRECT_STATE_ACCESS)
                 ?: defaults.extDirectStateAccess,
             fsr1 = Fsr1Preset.entries.fromWire(root.intOrNull(KEY_FSR1), defaults.fsr1),
+            perfLog = root.boolOrNull(KEY_PERF_LOG) ?: defaults.perfLog,
         )
     }
 
@@ -83,6 +86,7 @@ internal object MGConfigCodec {
             addProperty(KEY_DEPTH_CLEAR_FIX, config.depthClearFix.wire)
             addProperty(KEY_GL_VERSION, config.glVersion.wire)
             addProperty(KEY_FSR1, config.fsr1.wire)
+            addProperty(KEY_PERF_LOG, config.perfLog.wire)
             encodeMultidraw(config.multidraw)
         }
 

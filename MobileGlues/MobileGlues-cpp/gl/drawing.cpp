@@ -10,6 +10,7 @@
 #include "buffer.h"
 #include "framebuffer.h"
 #include "mg.h"
+#include "perf.h"
 #include "texture.h"
 #include "../egl/context.h"
 
@@ -195,6 +196,9 @@ void setupBufferTextureUniforms(GLuint program) {
 
 void prepareForDraw() {
     LOG_D("prepareForDraw...")
+    // Every glDraw* entry point in this file and in gl/multidraw.cpp lands
+    // here first, so this single counter site covers them all.
+    MG_PERF_DRAWS(1);
     if (hardware->emulate_texture_buffer) {
         setupBufferTextureUniforms(gl_state->current_program);
     }
@@ -212,6 +216,23 @@ void glDrawElementsInstanced(GLenum mode, GLsizei count, GLenum type, const void
     if (restart_fixed) GLES.glDisable(GL_PRIMITIVE_RESTART_FIXED_INDEX);
     CHECK_GL_ERROR
 }
+
+// glDrawArrays used to be a macro passthrough in gl/gl_native.cpp. It moved
+// here (same pass-through behaviour, plus the ARB alias the macro generated)
+// because the perf log needs a counter on it and there is no other shared
+// site the plain glDrawArrays path crosses.
+void glDrawArrays(GLenum mode, GLint first, GLsizei count) {
+    LOG()
+    LOG_D("glDrawArrays, mode: %d, first: %d, count: %d", mode, first, count)
+    MG_PERF_DRAWS(1);
+    GLES.glDrawArrays(mode, first, count);
+    CHECK_GL_ERROR
+}
+
+// The alias gl_native.cpp's macro used to emit for the non-Apple platforms;
+// glXGetProcAddress can hand this name out, so it stays.
+extern "C" GLAPI GLAPIENTRY void glDrawArraysARB(GLenum mode, GLint first, GLsizei count)
+    __attribute__((alias("glDrawArrays")));
 
 void glDrawElements(GLenum mode, GLsizei count, GLenum type, const void* indices) {
     LOG()

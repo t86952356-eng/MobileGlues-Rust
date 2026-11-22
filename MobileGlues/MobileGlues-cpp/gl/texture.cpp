@@ -8,6 +8,7 @@
 #include "texture.h"
 #include "../config/settings.h"
 #include "../egl/context.h"
+#include "perf.h"
 #include <mutex>
 #include <memory>
 #include <ska/flat_hash_map.hpp>
@@ -885,6 +886,11 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
           "%d,height: %d,border: %d,format: %s,type: %s, pixels: 0x%x",
           glEnumToString(target), level, glEnumToString(internalFormat), glEnumToString(internalFormat), width, height,
           border, glEnumToString(format), glEnumToString(type), pixels)
+    if (mg_perf_active) {
+        const unsigned long long bytes =
+            pixels ? (unsigned long long)pixel_sizeof(format, type) * width * height : 0;
+        mg_perf_add_texture_upload(1, bytes);
+    }
     // internal_convert is asked first, on copies, and only then is the data
     // converted to match. It rewrites the client format and type from the
     // internalformat alone, without touching the bytes -- so running it last let
@@ -955,6 +961,12 @@ void glTexImage3D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
     LOG_D("glTexImage3D, target: 0x%x, level: %d, internalFormat: 0x%x, width: "
           "0x%x, height: %d, depth: %d, border: %d, format: 0x%x, type: %d",
           target, level, internalFormat, width, height, depth, border, format, type)
+    if (mg_perf_active) {
+        const unsigned long long bytes = pixels ? (unsigned long long)pixel_sizeof(format, type) * width * height *
+                                                          depth
+                                                : 0;
+        mg_perf_add_texture_upload(1, bytes);
+    }
 
     // Same ordering as glTexImage2D; see the note there.
     GLenum want_if = static_cast<GLenum>(internalFormat), want_fmt = format, want_type = type;
@@ -1464,6 +1476,11 @@ void glTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset, G
           "width = %d, height = %d, format = %s, type = %s, pixels = 0x%x",
           glEnumToString(target), level, xoffset, yoffset, width, height, glEnumToString(format), glEnumToString(type),
           pixels)
+    if (mg_perf_active) {
+        const unsigned long long bytes =
+            pixels ? (unsigned long long)pixel_sizeof(format, type) * width * height : 0;
+        mg_perf_add_texture_upload(1, bytes);
+    }
 
     // A sub-upload must convert its data like any other transfer. The previous
     // code set a texture swizzle here instead -- sampling state, permanently
@@ -1726,6 +1743,12 @@ void glTexSubImage3D(GLenum target, GLint level, GLint xoffset, GLint yoffset, G
     LOG_D("glTexSubImage3D, target = %s, level = %d, offset = (%d,%d,%d), size = (%d,%d,%d), format = %s, type = %s",
           glEnumToString(target), level, xoffset, yoffset, zoffset, width, height, depth, glEnumToString(format),
           glEnumToString(type))
+    if (mg_perf_active) {
+        const unsigned long long bytes = pixels ? (unsigned long long)pixel_sizeof(format, type) * width * height *
+                                                          depth
+                                                : 0;
+        mg_perf_add_texture_upload(1, bytes);
+    }
     mg_upload_fix_t fix(width, height, depth, format, type, pixels);
     if (fix.dropped()) {
         CHECK_GL_ERROR

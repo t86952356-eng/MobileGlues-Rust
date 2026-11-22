@@ -371,6 +371,8 @@ data class MGConfig(
     val extTimerQuery: Boolean = true,
     val extDirectStateAccess: Boolean = false,
     val fsr1: Fsr1Preset = Fsr1Preset.Disabled,
+    /** `perfLog`：游戏内性能记录，游戏运行时由 native 库写 MG/perf_report.txt + perf_history.log。 */
+    val perfLog: Boolean = false,
 ) {
     val fsr1Enabled: Boolean get() = fsr1 != Fsr1Preset.Disabled
 

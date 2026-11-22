@@ -32,7 +32,7 @@
 |---|---|
 | `app/` | تطبيق الإضافة (Kotlin/Compose، applicationId = `com.fcl.plugin.mobileglues`): يحمّل `libmobileglues.so`، شاشة إعدادات (MGConfig)، تصدير/استيراد كاش GLSL، أدوات bench (MGBench/MultidrawBench)، خدمة استعلام MgQueryService لإظهار معلومات GPU داخل FCL. native صغير خاص به (`app/src/main/cpp/mobileglues_info_getter.cpp`). |
 | `MobileGlues/` | **العارض نفسه** (كان submodule، الآن مصدر متتبع مباشرة): مكتبة أندرويد (AAR) تبني `libmobileglues.so` عبر CMake. |
-| `MobileGlues/MobileGlues-cpp/` | الكود الأصلي C++20 (~166 ألف سطر بدون third-party): `gl/` (تنفيذ OpenGL: shader/buffer/texture/framebuffer/multidraw/drawing/enable/state)، `gl/glsl/` (مسار ترجمة GLSL)، `egl/`، `gles/`، `config/`، `3rdparty/` (glslang + SPIRV-Cross + xxHash + FSR1). |
+| `MobileGlues/MobileGlues-cpp/` | الكود الأصلي C++20 (~166 ألف سطر بدون third-party): `gl/` (تنفيذ OpenGL: shader/buffer/texture/framebuffer/multidraw/drawing/enable/state + **وحدة سجل الأداء `gl/perf.h/.cpp`** منذ 2.2.0)، `gl/glsl/` (مسار ترجمة GLSL)، `egl/`، `gles/`، `config/`، `3rdparty/` (glslang + SPIRV-Cross + xxHash + FSR1). |
 | `MobileGlues/MobileGlues-cpp/rust/` | **نواة Rust الجديدة** (mobileglues-rs v0.1.0): staticlib بلا اعتماديات، ماسحات نصوص أحادية المرور. |
 | `tools/rsdiff/` | أداة التكافؤ والقياس (C++ host): تقارن Rust بـstd::regex الأصلي بايت-ببايت على `corpus/` (12 ملف GLSL تمثيليًا) وتقيس الأداء. |
 | `.github/workflows/mg.yml` | سير البناء: اختبارات Rust + بوابة التكافؤ rsdiff ← بناء APK (Gradle + NDK r27 + Rust لأربع ABIs). |
@@ -64,20 +64,21 @@
 - إعدادات التطبيق: `app/build.gradle.kts` (الإصدار/التسمية/التوقيع) وملفات Kotlin تحت `app/src/main/java/.../settings/`.
 - الإصدار: `version_map.json` [0] + `app/build.gradle.kts` (versionCode/versionName) + قسم جديد في `CHANGELOG.md` بنمط `## [X.Y.Z] - date`.
 
-## 5. الميزات المنفذة (حالة ما بعد 2.1.0)
+## 5. الميزات المنفذة (حالة ما بعد 2.2.0)
 
 - [x] دمج Rust فعلي في مسار التنفيذ (الدوال الثماني أعلاه) مع احتياطي كامل.
 - [x] بوابة تكافؤ آلية (rsdiff) في كل بناء CI: فشل بايت واحد = فشل البناء.
 - [x] قياس أداء موثق (انظر §8).
 - [x] بنية مستودع مكتفية ذاتيًا (vendor بدل submodule).
 - [x] توقيع إصدارات الـfork + سير نشر كامل (APK + سورس ZIP + تقرير rsdiff + changelog ثنائي اللغة).
+- [x] **سجل الأداء داخل اللعبة (2.2.0)**: خيار perfLog في تطبيق الإضافة + زر مشاركة التقرير؛ العارض يسجّل أزمنة الإطارات وعدادات GL (رسم/multidraw/مخازن/قوام/حالة/برامج) وإحصاءات ترجمة الشيدرات مع الكاش، في `MG/perf_report.txt` (لقطة ذرّية كل 10 ثوانٍ) + `MG/perf_history.log` (CSV لكل نافذة). مفعّل عبر config.json أو `MG_PERF_LOG=1`. صفر تكلفة عند الإيقاف (فرع واحد متوقع لكل نقطة قياس). اختبار host: `tests/perf_smoke_test.cpp` (يُشغل مع `sh tests/run.sh`).
 
 ## 6. الميزات قيد التطوير / المخطط لها (خارطة الطريق)
 
-- **المرحلة 2 — قياس على الجهاز الفعلي**: تشغيل A/B على Helio G99 (`MG_RS_DISABLE=0/1`) مع عالم وشيدرات ثابتة، قياس FPS المتوسط وframe time و1% low وزمن تحميل العالم (نقل المزيد من الشيدرات أول تشغيل). توثيق النتائج هنا.
-- **المرحلة 3 — State Tracker**: تحليل `gl/enable.cpp` + التتبع في `drawing.cpp`/`multidraw.cpp` (خفض المقارنات المتكررة، تمثيل حالات أسرع) — يحتاج قياس perfetto (ملفات `mg.pbtx` جاهزة) قبل أي تعديل.
-- **المرحلة 4 — Buffer Management**: مناطق staging لإرسال بيانات الرسم (`gl/buffer.cpp`/`transfer.cpp`) وتقليل النسخ.
-- **المرحلة 5 — التوازي الآمن**: تقييم نقل ترجمات مستقلة إلى خيوط عاملة مع احترام ملكية سياق GL (اليوم `glShaderSource` وحيد الخيط عبر `shaderInfo` العام).
+- **المرحلة 2 — قياس على الجهاز الفعلي (الأداة جاهزة الآن)**: فعّل perfLog من تطبيق الإضافة ← ادخل العالم نفسه والعب ~دقيقتين ← شارك `MG/perf_report.txt` + `MG/perf_history.log`. اقرأ من التقرير: cache_misses عالية = عمل كاش؛ effective_draws_per_frame عالية (>500) = عمل batching/multidraw؛ بايتات buffer/texture لكل إطار عالية = عمل staging؛ state_changes لكل إطار عالية (>200) = عمل state tracking. للمقارنة A/B بين مساري Rust/C++: `MG_RS_DISABLE=0/1` مع `MG_PERF_LOG=1`.
+- **المرحلة 3 — State Tracker**: تحليل `gl/enable.cpp` + التتبع في `drawing.cpp`/`multidraw.cpp` (خفض المقارنات المتكررة، تمثيل حالات أسرع) — يُفتح فقط إن أظهر تقرير الأداء state_changes عالية.
+- **المرحلة 4 — Buffer Management**: مناطق staging لإرسال بيانات الرسم (`gl/buffer.cpp`/`transfer.cpp`) — تُفتح فقط إن أظهر التقرير buffer MB/إطار عالية.
+- **المرحلة 5 — التوازي الآمن**: تقييم نقل ترجمات مستقلة إلى خيوط عاملة مع احترام ملكية سياق GL — تُفتح فقط إن أظهر التقرير زمن ترجمة مهيمنًا.
 
 ## 7. المشاكل المعروفة والأخطاء المصلحة
 
@@ -107,14 +108,14 @@
 
 ## 10. الإصدارات وسجل الكوميتات
 
-- **آخر إصدار منشور**: 2.1.0 (وسم `2.1.0`، منشور 2026-11-21 بعد إعادة نشر — النسخة الأولى كانت بأرشيف Rust غير مربوط فحُذفت فورًا قبل أي تنزيل وأُعيد بناؤها بالإصلاح) — أول إصدار هجين C++/Rust — أصوله: APK موقّع (12.1MB) + سورس ZIP (13.1MB) + تقرير rsdiff + changelog عربي/إنجليزي.
+- **آخر إصدار منشور**: 2.2.0 (سجل الأداء داخل اللعبة، منشور 2026-11-22 — انظر CHANGELOG). سبقه: 2.1.0 (أول إصدار هجين C++/Rust، منشور 2026-11-21 بعد إعادة نشر — النسخة الأولى كانت بأرشيف Rust غير مربوط فحُذفت فورًا قبل أي تنزيل وأُعيد بناؤها بالإصلاح) — أول إصدار هجين C++/Rust — أصوله: APK موقّع (12.1MB) + سورس ZIP (13.1MB) + تقرير rsdiff + changelog عربي/إنجليزي.
 - **تحقق ما بعد النشر**: فحص `nm -D` على الـAPK المنشور أكد أن كل الرموز الـ11 `mg_rs_*` معرفة (T) داخل libmobileglues.so للمعماريات الأربع — Rust فعّالة فعليًا في مسار التنفيذ.
 - **آخر كوميتات مهمة**: راجع `git log --oneline -10` (توثّق دائمًا من الفعلي بدل الاعتماد على هذا القسم).
 
 ## 11. المرحلة الحالية والمهمة التالية
 
-- **الحالية**: إنهاء المرحلة الأولى (دمج Rust في مسار النصوص + البنية + التوثيق + الإصدار 2.1.0).
-- **المهمة التالية المقترحة**: المرحلة 2 — قياس A/B على الجهاز (Helio G99) وتوثيق أرقام FPS/frame time/زمن التحميل، ثم فتح المرحلة 3 (State Tracker) بقياس perfetto أولًا.
+- **الحالية**: إنهاء إصدار 2.2.0 — سجل الأداء داخل اللعبة (perfLog): وحدة `gl/perf.h/.cpp` + نقاط قياس في المسارات الحقيقية + خيار وزر مشاركة في تطبيق الإضافة + اختبار host ناجح + ترجمات en/zh/ar.
+- **المهمة التالية**: انتظار تقرير الأداء من المستخدم (تفعيل perfLog ← دقيقة لعب ← مشاركة `MG/perf_report.txt` + `perf_history.log`) ثم قراءة المرحلة المناسبة من خارطة الطريق (§6) بناء على أرقام التقرير الفعلية.
 
 ## 12. ما يحتاجه أي AI جديد للبدء
 
