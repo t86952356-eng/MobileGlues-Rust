@@ -219,6 +219,12 @@ struct global_settings_t {
     // counters, written to MG/perf_report.txt every 10 s. Off by default;
     // the hook sites cost one predicted branch while off.
     bool perf_log;
+    // Persistent program pipeline cache ("programBinaryCache", 2.3.0):
+    // stores linked program binaries (glGetProgramBinary) and per-source
+    // driver compile answers in MG/pipeline_cache.bin, so the second run of
+    // any shader pack skips the driver compile+link stall. On by default;
+    // MG_NO_PROGBIN=1 is the runtime escape hatch.
+    bool program_binary_cache;
 };
 
 extern global_settings_t global_settings;

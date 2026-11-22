@@ -107,6 +107,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
     gl/enable.cpp
     gl/restart.cpp
     gl/perf.cpp
+    gl/pipeline_cache.cpp
     egl/context.cpp
     gl/pixel.cpp
     gl/transfer.cpp

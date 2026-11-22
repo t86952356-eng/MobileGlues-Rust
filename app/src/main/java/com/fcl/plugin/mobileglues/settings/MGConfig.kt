@@ -373,6 +373,13 @@ data class MGConfig(
     val fsr1: Fsr1Preset = Fsr1Preset.Disabled,
     /** `perfLog`：游戏内性能记录，游戏运行时由 native 库写 MG/perf_report.txt + perf_history.log。 */
     val perfLog: Boolean = false,
+    /**
+     * `programBinaryCache`：持久化程序管线缓存（2.3.0）。native 层把链接好的程序二进制
+     * (glGetProgramBinary) 和每个源码的编译状态答案存进 MG/pipeline_cache.bin，第二次
+     * 运行同一套光影包时跳过驱动侧 compile+link 的多秒卡顿。默认开启；
+     * MG_NO_PROGBIN=1 是运行时开关。
+     */
+    val programBinaryCache: Boolean = true,
 ) {
     val fsr1Enabled: Boolean get() = fsr1 != Fsr1Preset.Disabled
 

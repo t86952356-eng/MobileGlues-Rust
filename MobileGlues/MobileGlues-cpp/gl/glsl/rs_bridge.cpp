@@ -114,4 +114,18 @@ std::optional<bool> has_temporal_filter_def(const std::string& src) {
     return v != 0;
 }
 
+std::optional<std::string> strip_line_directives(const std::string& src, const std::string& substitution) {
+    if (!enabled() || mg_rs_strip_line_directives == nullptr) return std::nullopt;
+    RsString r(mg_rs_strip_line_directives(src.c_str(), substitution.c_str()));
+    if (!r.ok()) return std::nullopt;
+    return r.str();
+}
+
+std::optional<std::string> process_uniform_declarations(const std::string& src) {
+    if (!enabled() || mg_rs_process_uniform_declarations == nullptr) return std::nullopt;
+    RsString r(mg_rs_process_uniform_declarations(src.c_str()));
+    if (!r.ok()) return std::nullopt;
+    return r.str();
+}
+
 } // namespace rs

@@ -23,6 +23,7 @@ internal object MGConfigCodec {
     private const val KEY_EXT_DIRECT_STATE_ACCESS = "enableExtDirectStateAccess"
     private const val KEY_GLSL_CACHE = "maxGlslCacheSize"
     private const val KEY_PERF_LOG = "perfLog"
+    private const val KEY_PROGRAM_BINARY_CACHE = "programBinaryCache"
 
     /**
      * 已废弃的三代旧键：native 不再读取，只会在它们还存在时打弃用警告。
@@ -44,6 +45,7 @@ internal object MGConfigCodec {
         KEY_EXT_DIRECT_STATE_ACCESS,
         KEY_GLSL_CACHE,
         KEY_PERF_LOG,
+        KEY_PROGRAM_BINARY_CACHE,
         KEY_MULTIDRAW_LEGACY,
         KEY_MULTIDRAW_DISABLE_LEGACY,
         KEY_MULTIDRAW_ORDER,
@@ -72,6 +74,7 @@ internal object MGConfigCodec {
                 ?: defaults.extDirectStateAccess,
             fsr1 = Fsr1Preset.entries.fromWire(root.intOrNull(KEY_FSR1), defaults.fsr1),
             perfLog = root.boolOrNull(KEY_PERF_LOG) ?: defaults.perfLog,
+            programBinaryCache = root.boolOrNull(KEY_PROGRAM_BINARY_CACHE) ?: defaults.programBinaryCache,
         )
     }
 
@@ -87,6 +90,7 @@ internal object MGConfigCodec {
             addProperty(KEY_GL_VERSION, config.glVersion.wire)
             addProperty(KEY_FSR1, config.fsr1.wire)
             addProperty(KEY_PERF_LOG, config.perfLog.wire)
+            addProperty(KEY_PROGRAM_BINARY_CACHE, config.programBinaryCache.wire)
             encodeMultidraw(config.multidraw)
         }
 

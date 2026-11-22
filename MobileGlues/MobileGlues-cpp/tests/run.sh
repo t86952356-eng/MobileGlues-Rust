@@ -18,3 +18,8 @@ echo
 # 10-second report window to see the files written).
 $CXX -o /tmp/mg_perf_smoke tests/perf_smoke_test.cpp gl/perf.cpp
 /tmp/mg_perf_smoke
+echo
+# Pipeline cache store test: records, keys, binary/status round-trips, LRU
+# budget and disk persistence (simulated restart via reload_for_test).
+$CXX -o /tmp/mg_pipeline_cache tests/pipeline_cache_test.cpp gl/pipeline_cache.cpp
+/tmp/mg_pipeline_cache

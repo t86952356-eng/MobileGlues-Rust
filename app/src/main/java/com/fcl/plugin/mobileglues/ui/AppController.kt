@@ -490,6 +490,12 @@ class AppController(
     fun setPerfLog(enabled: Boolean) = update { it.copy(perfLog = enabled) }
 
     /**
+     * 程序管线缓存开关（2.3.0）。同上：只影响下一次进游戏。关闭后 glCompileShader
+     * 回到直通路径，行为与 2.2.0 完全一致。
+     */
+    fun setProgramBinaryCache(enabled: Boolean) = update { it.copy(programBinaryCache = enabled) }
+
+    /**
      * 把最近的性能报告以纯文本分享出去（发给开发者分析）。
      * 报告还没生成时提示用户先带着开关进一次游戏。
      */

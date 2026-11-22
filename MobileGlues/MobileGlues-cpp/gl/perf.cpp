@@ -107,6 +107,21 @@ struct PerfState {
     std::atomic<uint64_t> state_changes{0};
     std::atomic<uint64_t> use_program{0};
 
+    // 2.3.0 pipeline-cache counters. use_program counts every arriving call
+    // (as before); forwarded/skipped split it into what really reached the
+    // driver and what the dedup absorbed.
+    std::atomic<uint64_t> use_program_forwarded{0};
+    std::atomic<uint64_t> use_program_skipped{0};
+    std::atomic<uint64_t> shader_compile_executed{0};
+    std::atomic<uint64_t> shader_compile_ns{0};
+    std::atomic<uint64_t> shader_compile_deferred{0};
+    std::atomic<uint64_t> shader_status_hits{0};
+    std::atomic<uint64_t> program_link_ns{0};
+    std::atomic<uint64_t> program_binary_hits{0};
+    std::atomic<uint64_t> program_binary_misses{0};
+    std::atomic<uint64_t> program_binary_failures{0};
+    std::atomic<uint64_t> program_binary_load_ns{0};
+
     // Snapshot of the counters when the current window opened, so the report
     // can show "last N seconds" rates without stopping anything.
     uint64_t snap_frames = 0, snap_draws = 0, snap_md_batches = 0, snap_md_subdraws = 0;
@@ -115,6 +130,7 @@ struct PerfState {
     uint64_t snap_buffer_calls = 0, snap_buffer_bytes = 0;
     uint64_t snap_texture_calls = 0, snap_texture_bytes = 0;
     uint64_t snap_state_changes = 0, snap_use_program = 0;
+    uint64_t snap_binary_hits = 0, snap_binary_misses = 0;
 
     std::mutex write_mutex;
     bool history_header_written = false;
@@ -220,7 +236,8 @@ void write_history_line(uint64_t uptime_s, uint64_t w_frames, double w_seconds, 
                 "# MobileGlues perf history (one line per 10s window)\n"
                 "# uptime_s,frames,fps_avg,ft_avg_ms,ft_p95_ms,ft_max_ms,draws_per_frame,"
                 "md_batches_per_frame,md_subdraws_per_frame,shader_hits,shader_misses,"
-                "buffer_MB_per_frame,texture_MB_per_frame,state_changes_per_frame,use_program_per_frame\n");
+                "buffer_MB_per_frame,texture_MB_per_frame,state_changes_per_frame,use_program_per_frame,"
+                "pipeline_binary_hits,pipeline_binary_misses\n");
         s.history_header_written = true;
     }
     const double fps = w_seconds > 0 ? (double)w_frames / w_seconds : 0.0;
@@ -235,14 +252,16 @@ void write_history_line(uint64_t uptime_s, uint64_t w_frames, double w_seconds, 
     const uint64_t w_prog = s.use_program.load() - s.snap_use_program;
     const double w_fps = w_frames ? (double)w_frames : 0.0;
     fprintf(f,
-            "%llu,%llu,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%llu,%llu,%.3f,%.3f,%.2f,%.2f\n",
+            "%llu,%llu,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%llu,%llu,%.3f,%.3f,%.2f,%.2f,%llu,%llu\n",
             (unsigned long long)uptime_s, (unsigned long long)w_frames, fps, hist_avg_ms(s.window),
             hist_percentile_ms(s.window, 0.95), hist_max_ms(s.window),
             rate_per_frame(w_draws, w_frames), rate_per_frame(w_md_b, w_frames),
             rate_per_frame(w_md_s, w_frames), (unsigned long long)w_hits, (unsigned long long)w_miss,
             (double)w_buf / 1048576.0 / (w_fps > 0 ? w_fps : 1.0),
             (double)w_tex / 1048576.0 / (w_fps > 0 ? w_fps : 1.0),
-            rate_per_frame(w_state, w_frames), rate_per_frame(w_prog, w_frames));
+            rate_per_frame(w_state, w_frames), rate_per_frame(w_prog, w_frames),
+            (unsigned long long)(s.program_binary_hits.load() - s.snap_binary_hits),
+            (unsigned long long)(s.program_binary_misses.load() - s.snap_binary_misses));
     fclose(f);
 }
 
@@ -327,6 +346,17 @@ void write_report(const PerfState& s) {
             rate_per_frame(st_c, frames), rate_per_second(st_c, uptime_s));
     fprintf(f, "use_program_calls: %s | %.2f | %.1f\n", fmt_u64(pr_c).c_str(), rate_per_frame(pr_c, frames),
             rate_per_second(pr_c, uptime_s));
+    {
+        // Since 2.3.0 the call counter alone overstates driver work: the
+        // dispatcher already absorbed redundant switches. The split shows
+        // both sides.
+        const uint64_t pr_fwd = s.use_program_forwarded.load();
+        const uint64_t pr_skip = s.use_program_skipped.load();
+        fprintf(f, "use_program_forwarded: %s | %.2f | %.1f\n", fmt_u64(pr_fwd).c_str(),
+                rate_per_frame(pr_fwd, frames), rate_per_second(pr_fwd, uptime_s));
+        fprintf(f, "use_program_skipped_redundant: %s | %.2f | %.1f\n", fmt_u64(pr_skip).c_str(),
+                rate_per_frame(pr_skip, frames), rate_per_second(pr_skip, uptime_s));
+    }
 
     fprintf(f, "---- shaders ----\n");
     const uint64_t srcs = s.shader_sources.load();
@@ -344,6 +374,28 @@ void write_report(const PerfState& s) {
     fprintf(f, "shader_translate_time_ms_total: %s\n", fmt_u64(translate_ms).c_str());
     if (hits + miss > 0) {
         fprintf(f, "shader_translate_time_ms_avg: %.2f\n", (double)translate_ms / (double)(hits + miss));
+    }
+
+    fprintf(f, "---- programs (driver-side compile/link, pipeline cache) ----\n");
+    {
+        const uint64_t c_exec = s.shader_compile_executed.load();
+        const uint64_t c_def = s.shader_compile_deferred.load();
+        const uint64_t c_st = s.shader_status_hits.load();
+        const uint64_t c_ms = s.shader_compile_ns.load() / 1000000ull;
+        fprintf(f, "shader_driver_compiles: %s | deferred_away: %s | status_cache_hits: %s\n",
+                fmt_u64(c_exec).c_str(), fmt_u64(c_def).c_str(), fmt_u64(c_st).c_str());
+        fprintf(f, "shader_driver_compile_ms_total: %s\n", fmt_u64(c_ms).c_str());
+        const uint64_t link_ms = s.program_link_ns.load() / 1000000ull;
+        fprintf(f, "program_link_ms_total: %s\n", fmt_u64(link_ms).c_str());
+        const uint64_t b_hits = s.program_binary_hits.load();
+        const uint64_t b_miss = s.program_binary_misses.load();
+        const uint64_t b_fail = s.program_binary_failures.load();
+        const uint64_t b_ms = s.program_binary_load_ns.load() / 1000000ull;
+        fprintf(f, "program_binary_cache: hits %s | misses %s | load_failures %s\n", fmt_u64(b_hits).c_str(),
+                fmt_u64(b_miss).c_str(), fmt_u64(b_fail).c_str());
+        fprintf(f, "program_binary_load_ms_total: %s", fmt_u64(b_ms).c_str());
+        if (b_hits > 0) fprintf(f, " | avg_per_hit: %.2f", (double)b_ms / (double)b_hits);
+        fprintf(f, "\n");
     }
 
     // The last window is the interesting one for "what is happening now";
@@ -373,6 +425,11 @@ void write_report(const PerfState& s) {
     fprintf(f, "how_to_read: high cache_misses = caching work; high effective_draws_per_frame\n");
     fprintf(f, "  (>500) = batching/multidraw work; high buffer/texture MB per frame = upload\n");
     fprintf(f, "  staging work; high state_changes per frame (>200) = state tracking work.\n");
+    fprintf(f, "pipeline cache: the FIRST run with a new shader pack must compile everything\n");
+    fprintf(f, "  (binary misses); from the SECOND run on, program_binary_cache hits should\n");
+    fprintf(f, "  replace nearly all driver compiles+links, and the world-load stall should\n");
+    fprintf(f, "  shrink accordingly. use_program_calls counts arrivals; the forwarded line is\n");
+    fprintf(f, "  what the driver actually saw.\n");
     fprintf(f, "Attach this file together with perf_history.log when reporting.\n");
 
     fclose(f);
@@ -408,6 +465,8 @@ void close_window(PerfState& s) {
     s.snap_texture_bytes = s.texture_bytes.load();
     s.snap_state_changes = s.state_changes.load();
     s.snap_use_program = s.use_program.load();
+    s.snap_binary_hits = s.program_binary_hits.load();
+    s.snap_binary_misses = s.program_binary_misses.load();
 
     // Reset the window histogram for the next interval. Relaxed stores are
     // fine: only the swap thread writes, and the report writer runs under the
@@ -498,6 +557,41 @@ void mg_perf_add_state_change(unsigned long long n) {
 
 void mg_perf_add_use_program(unsigned long long n) {
     g_perf.use_program.fetch_add(n, std::memory_order_relaxed);
+}
+
+void mg_perf_add_use_program_forwarded(unsigned long long n) {
+    g_perf.use_program_forwarded.fetch_add(n, std::memory_order_relaxed);
+}
+
+void mg_perf_add_use_program_skipped(unsigned long long n) {
+    g_perf.use_program_skipped.fetch_add(n, std::memory_order_relaxed);
+}
+
+void mg_perf_add_shader_compile_executed(unsigned long long ns) {
+    g_perf.shader_compile_executed.fetch_add(1, std::memory_order_relaxed);
+    g_perf.shader_compile_ns.fetch_add(ns, std::memory_order_relaxed);
+}
+
+void mg_perf_add_shader_compile_deferred(unsigned long long n) {
+    g_perf.shader_compile_deferred.fetch_add(n, std::memory_order_relaxed);
+}
+
+void mg_perf_add_shader_status_hit(unsigned long long n) {
+    g_perf.shader_status_hits.fetch_add(n, std::memory_order_relaxed);
+}
+
+void mg_perf_add_program_link(unsigned long long ns) {
+    g_perf.program_link_ns.fetch_add(ns, std::memory_order_relaxed);
+}
+
+void mg_perf_add_program_binary(unsigned long long ns, int hit, int ok) {
+    if (hit) {
+        g_perf.program_binary_hits.fetch_add(1, std::memory_order_relaxed);
+        g_perf.program_binary_load_ns.fetch_add(ns, std::memory_order_relaxed);
+        if (!ok) g_perf.program_binary_failures.fetch_add(1, std::memory_order_relaxed);
+    } else {
+        g_perf.program_binary_misses.fetch_add(1, std::memory_order_relaxed);
+    }
 }
 
 void mg_perf_set_device_info(const char* renderer, const char* gles_version) {

@@ -1,6 +1,24 @@
 [
   {
     "type": "release",
+    "versionCode": 2030,
+    "versionName": "2.3.0",
+    "date": "2026.11.22",
+    "description": [
+      {
+        "lang": "en",
+        "text": "Program pipeline cache driven by the first real perf report (Mali-G57, 232 shader cache misses, 10.95 s worst frame): linked programs are persisted as ready binaries (glGetProgramBinary -> MG/pipeline_cache.bin, 64 MiB LRU, SHA-256 key over driver identity + every attached source + attrib bindings + default FS) and reloaded with a single glProgramBinary, with deferred glCompileShader and persisted per-source driver compile answers eliminating the per-session compile+link stall from the second run of any shader pack. Fallback to the full compile+link path on any binary failure; MG_NO_PROGBIN=1 or the new setting restores exact pre-2.3.0 behavior. Two more text passes moved to the Rust core (parity 14/14 files: replace_line_starting_with, process_uniform_declarations at 2.01x). Perf report v2 adds driver compile/link timing, pipeline-cache hit/miss counters and the forwarded-vs-skipped useProgram split; fixed the report showing renderer_version 2.0.0."
+      },
+      {
+        "lang": "ar",
+        "text": "كاش برامج شيدرات دائم مبني على أول تقرير أداء حقيقي (Mali-G57، 232 إخفاق كاش، أسوأ إطار 10.95 ثانية): تُحفظ البرامج المرتبطة كثنائيات جاهزة (glGetProgramBinary إلى MG/pipeline_cache.bin بحد 64MB ومفتاح SHA-256 يشمل هوية الدايفر وكل المصادر المرفقة وروابط السمات والشيدر الافتراضي) وتُحمَّل بنداء glProgramBinary واحد، مع تأجيل glCompileShader وحفظ إجابات الدايفر لكل مصدر — فيختفي توقف التجميع والربط متعدد الثواني من التشغيل الثاني لأي حزمة شيدرات. أي فشل في تحميل الثنائي يسقط لمسار التجميع الكامل، وMG_NO_PROGBIN=1 أو الخيار الجديد يعيد السلوك المطابق تمامًا لما قبل 2.3.0. نقلان إضافيان لنواة Rust (تكافؤ 14/14 ملفًا: replace_line_starting_with وprocess_uniform_declarations بسرعة 2.01x). تقرير الأداء v2 يضيف توقيتات تجميع/ربط الدايفر وعدادات كاش الثنائيات وفصل useProgram إلى مُمرَّر/متجاهَل، مع إصلاح ظهور renderer_version 2.0.0 في التقارير."
+      }
+    ],
+    "apkUrl": "https://github.com/t86952356-eng/MobileGlues-Rust/releases/download/2.3.0/MobileGlues-RS-2.3.0.apk",
+    "sourceUrl": "https://github.com/t86952356-eng/MobileGlues-Rust/releases/download/2.3.0/MobileGlues-RS-2.3.0-source.zip"
+  },
+  {
+    "type": "release",
     "versionCode": 2020,
     "versionName": "2.2.0",
     "date": "2026.11.22",

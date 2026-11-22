@@ -43,6 +43,8 @@ char* mg_rs_process_sampler_buffer_rewrite(const char* src);
 long long mg_rs_find_uniform_insert_pos(const char* src);
 int mg_rs_has_texture_query_lod_def(const char* src);
 int mg_rs_has_temporal_filter_def(const char* src);
+char* mg_rs_strip_line_directives(const char* src, const char* substitution);
+char* mg_rs_process_uniform_declarations(const char* src);
 }
 
 // --------------------------------------------------------------------------
@@ -163,6 +165,161 @@ static bool cpp_has_temporal_filter_def(const std::string& glsl) {
     return std::regex_search(glsl, defRegex);
 }
 
+// replace_line_starting_with, the pre-2.3.0 C++ body (prefix check is the
+// literal "#line" regardless of `starting` -- the behaviour the Rust port
+// froze).
+static std::string cpp_replace_line_starting_with(const std::string& glslCode, const std::string& substitution) {
+    std::string result;
+    size_t length = glslCode.size();
+    size_t start = 0;
+    size_t current = 0;
+
+    auto append_chunk = [&](size_t end) {
+        if (end > start) {
+            result.append(glslCode, start, end - start);
+        }
+    };
+
+    while (current < length) {
+        size_t lineStart = current;
+        while (current < length && (glslCode[current] == ' ' || glslCode[current] == '\t')) {
+            current++;
+        }
+
+        bool isLineDirective = false;
+        if (current + 5 <= length && glslCode.compare(current, 5, "#line") == 0) {
+            isLineDirective = true;
+        }
+
+        while (current < length && glslCode[current] != '\r' && glslCode[current] != '\n') {
+            current++;
+        }
+
+        size_t newlineLength = 0;
+        if (current < length) {
+            if (glslCode[current] == '\r') {
+                newlineLength = (current + 1 < length && glslCode[current + 1] == '\n') ? 2 : 1;
+            } else {
+                newlineLength = 1;
+            }
+        }
+
+        if (isLineDirective) {
+            append_chunk(lineStart);
+            current += newlineLength;
+            start = current;
+            result += substitution;
+        } else {
+            current += newlineLength;
+        }
+    }
+
+    append_chunk(current);
+    return result;
+}
+
+// process_uniform_declarations, the pre-2.3.0 C++ body.
+static std::string cpp_process_uniform_declarations(const std::string& glslCode) {
+    std::string result;
+    size_t scan_pos = 0;
+    size_t chunk_start = 0;
+    const size_t length = glslCode.length();
+    const std::vector<std::string> precision_kws = {"highp", "lowp", "mediump"};
+
+    result.reserve(glslCode.length());
+
+    while (scan_pos < length) {
+        if (glslCode.compare(scan_pos, 7, "uniform") == 0) {
+            if (scan_pos > chunk_start) {
+                result.append(glslCode, chunk_start, scan_pos - chunk_start);
+            }
+
+            const size_t decl_start = scan_pos;
+            scan_pos += 7;
+
+            std::string precision, type;
+            bool found_precision = false;
+
+            while (scan_pos < length) {
+                while (scan_pos < length && std::isspace(glslCode[scan_pos]))
+                    ++scan_pos;
+
+                for (const auto& kw : precision_kws) {
+                    if (glslCode.compare(scan_pos, kw.length(), kw) == 0) {
+                        precision = " " + kw;
+                        scan_pos += kw.length();
+                        found_precision = true;
+                        break;
+                    }
+                }
+                if (found_precision) break;
+
+                const size_t type_start = scan_pos;
+                while (scan_pos < length && (std::isalnum(glslCode[scan_pos]) || glslCode[scan_pos] == '_')) {
+                    ++scan_pos;
+                }
+                type = glslCode.substr(type_start, scan_pos - type_start);
+                break;
+            }
+
+            while (scan_pos < length) {
+                while (scan_pos < length && std::isspace(glslCode[scan_pos]))
+                    ++scan_pos;
+
+                bool found = false;
+                for (const auto& kw : precision_kws) {
+                    if (glslCode.compare(scan_pos, kw.length(), kw) == 0) {
+                        if (precision.empty()) precision = " " + kw;
+                        scan_pos += kw.length();
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) break;
+            }
+
+            if (type.empty()) {
+                const size_t type_start = scan_pos;
+                while (scan_pos < length && (std::isalnum(glslCode[scan_pos]) || glslCode[scan_pos] == '_')) {
+                    ++scan_pos;
+                }
+                type = glslCode.substr(type_start, scan_pos - type_start);
+            }
+
+            while (scan_pos < length && std::isspace(glslCode[scan_pos]))
+                ++scan_pos;
+            const size_t name_start = scan_pos;
+            while (scan_pos < length && (std::isalnum(glslCode[scan_pos]) || glslCode[scan_pos] == '_')) {
+                ++scan_pos;
+            }
+            const std::string name = glslCode.substr(name_start, scan_pos - name_start);
+
+            size_t decl_end = glslCode.find(';', scan_pos);
+            if (decl_end == std::string::npos)
+                decl_end = length;
+            else
+                ++decl_end;
+            const bool has_initializer = (glslCode.find('=', scan_pos) < decl_end);
+            if (has_initializer) {
+                result.append("uniform").append(precision).append(" ").append(type).append(" ").append(name).append(
+                    ";");
+            } else {
+                result.append(glslCode, decl_start, decl_end - decl_start);
+            }
+
+            scan_pos = chunk_start = decl_end;
+        } else {
+            ++scan_pos;
+        }
+    }
+
+    if (chunk_start < length) {
+        result.append(glslCode, chunk_start, length - chunk_start);
+    }
+
+    return result;
+}
+
 // --------------------------------------------------------------------------
 // helpers
 // --------------------------------------------------------------------------
@@ -229,7 +386,7 @@ int main(int argc, char** argv) {
 
     int failures = 0;
     struct OpStats { long long cpp_ns = 0, rust_ns = 0; };
-    OpStats st_version, st_layout, st_outcolor, st_precision, st_texel, st_uniform, st_lod, st_gi;
+    OpStats st_version, st_layout, st_outcolor, st_precision, st_texel, st_uniform, st_lod, st_gi, st_strip, st_puniform;
 
     for (const auto& path : files) {
         std::string src = read_file(path);
@@ -271,6 +428,21 @@ int main(int argc, char** argv) {
         rust_b = mg_rs_has_temporal_filter_def(src.c_str());
         if (rust_b < 0 || (rust_b != 0) != cpp_b) { printf("MISMATCH has_temporal_filter_def %s\n", name); file_ok = false; }
 
+        cpp_s = cpp_replace_line_starting_with(src, "");
+        { RustStr r(mg_rs_strip_line_directives(src.c_str(), "")); rust_s = r.ok() ? r.str() : std::string();
+          if (!r.ok()) { printf("RUST FAIL strip_line_directives %s\n", name); file_ok = false; } }
+        if (cpp_s != rust_s) { printf("MISMATCH strip_line_directives %s\n", name); file_ok = false; }
+
+        cpp_s = cpp_replace_line_starting_with(src, "#version 150 compatibility\n");
+        { RustStr r(mg_rs_strip_line_directives(src.c_str(), "#version 150 compatibility\n")); rust_s = r.ok() ? r.str() : std::string();
+          if (!r.ok()) { printf("RUST FAIL strip_line_directives(subst) %s\n", name); file_ok = false; } }
+        if (cpp_s != rust_s) { printf("MISMATCH strip_line_directives(subst) %s\n", name); file_ok = false; }
+
+        cpp_s = cpp_process_uniform_declarations(src);
+        { RustStr r(mg_rs_process_uniform_declarations(src.c_str())); rust_s = r.ok() ? r.str() : std::string();
+          if (!r.ok()) { printf("RUST FAIL process_uniform_declarations %s\n", name); file_ok = false; } }
+        if (cpp_s != rust_s) { printf("MISMATCH process_uniform_declarations %s\n", name); file_ok = false; }
+
         if (!file_ok) { failures++; continue; }
 
         // ---- benchmarks (only on verified-identical paths) ----
@@ -291,9 +463,13 @@ int main(int argc, char** argv) {
         st_lod.rust_ns      += bench([&] { mg_rs_has_texture_query_lod_def(src.c_str()); }, min_ms);
         st_gi.cpp_ns        += bench([&] { cpp_has_temporal_filter_def(src); }, min_ms);
         st_gi.rust_ns       += bench([&] { mg_rs_has_temporal_filter_def(src.c_str()); }, min_ms);
+        st_strip.cpp_ns     += bench([&] { cpp_replace_line_starting_with(src, ""); }, min_ms);
+        st_strip.rust_ns    += bench([&] { char* p = mg_rs_strip_line_directives(src.c_str(), ""); mg_rs_free(p); }, min_ms);
+        st_puniform.cpp_ns  += bench([&] { cpp_process_uniform_declarations(src); }, min_ms);
+        st_puniform.rust_ns += bench([&] { char* p = mg_rs_process_uniform_declarations(src.c_str()); mg_rs_free(p); }, min_ms);
     }
 
-    printf("\n=== EQUIVALENCE: %s (%d/%zu files byte-identical on all 8 functions) ===\n",
+    printf("\n=== EQUIVALENCE: %s (%d/%zu files byte-identical on all 10 functions) ===\n",
            failures == 0 ? "PASS" : "FAIL", (int)files.size() - failures, files.size());
     printf("\n=== BENCHMARK (sum over corpus, ns/call, lower is better) ===\n");
     auto row = [](const char* n, const OpStats& s) {
@@ -309,6 +485,8 @@ int main(int argc, char** argv) {
     row("find_uniform_insert_pos", st_uniform);
     row("has_texture_query_lod_def", st_lod);
     row("has_temporal_filter_def", st_gi);
+    row("strip_line_directives", st_strip);
+    row("process_uniform_declarations", st_puniform);
 
     return failures == 0 ? 0 : 1;
 }

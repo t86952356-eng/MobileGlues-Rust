@@ -25,6 +25,12 @@ extern "C"
     GLAPI GLAPIENTRY void glGetActiveUniformName(GLuint program, GLuint uniformIndex, GLsizei bufSize, GLsizei* length,
                                                  GLchar* uniformName);
 
+    // Intercepted since 2.3.0 for the pipeline cache: both change what a
+    // linked program binary depends on (attribute bindings, attachments) and
+    // are tracked in gl/program.cpp.
+    GLAPI GLAPIENTRY void glBindAttribLocation(GLuint program, GLuint index, const GLchar* name);
+    GLAPI GLAPIENTRY void glDetachShader(GLuint program, GLuint shader);
+
 #ifdef __cplusplus
 }
 #endif

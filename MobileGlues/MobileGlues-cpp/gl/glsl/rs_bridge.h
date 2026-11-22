@@ -57,6 +57,8 @@ MG_RS_WEAK char* mg_rs_process_sampler_buffer_rewrite(const char* src);
 MG_RS_WEAK long long mg_rs_find_uniform_insert_pos(const char* src);
 MG_RS_WEAK int mg_rs_has_texture_query_lod_def(const char* src);
 MG_RS_WEAK int mg_rs_has_temporal_filter_def(const char* src);
+MG_RS_WEAK char* mg_rs_strip_line_directives(const char* src, const char* substitution);
+MG_RS_WEAK char* mg_rs_process_uniform_declarations(const char* src);
 }
 
 namespace rs {
@@ -79,6 +81,8 @@ std::optional<std::string> process_sampler_buffer_rewrite(const std::string& src
 std::optional<size_t> find_uniform_insert_pos(const std::string& src);
 std::optional<bool> has_texture_query_lod_def(const std::string& src);
 std::optional<bool> has_temporal_filter_def(const std::string& src);
+std::optional<std::string> strip_line_directives(const std::string& src, const std::string& substitution);
+std::optional<std::string> process_uniform_declarations(const std::string& src);
 
 } // namespace rs
 

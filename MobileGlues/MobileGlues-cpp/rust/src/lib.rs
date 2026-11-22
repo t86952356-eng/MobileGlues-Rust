@@ -728,6 +728,240 @@ fn has_named_def(input: &str, ty: &[u8], name: &[u8]) -> bool {
 }
 
 // ---------------------------------------------------------------------------
+// 9. strip_line_directives (port of replace_line_starting_with)
+//
+// Upstream walks the source line by line, and for every line whose first
+// non-" \t" bytes are the literal "#line" it drops the whole line and appends
+// `substitution` in its place. Two historical quirks are preserved on
+// purpose:
+//   * the match is on the literal "#line" regardless of the `starting`
+//     parameter the C++ signature carries -- the parameter has always been
+//     advisory, and the "#version" call site relies on exactly this
+//     behaviour;
+//   * only ' ' and '\t' count as leading indentation (not the full \s set),
+//     and "\r\n" is consumed as one terminator.
+// ---------------------------------------------------------------------------
+
+fn strip_line_directives_impl(input: &str, substitution: &str) -> String {
+    let s = input.as_bytes();
+    let n = s.len();
+    let mut out = String::with_capacity(n + 16);
+    let mut start = 0usize; // chunk boundary: everything before it is already in `out`
+    let mut current = 0usize;
+
+    while current < n {
+        let line_start = current;
+        while current < n && (s[current] == b' ' || s[current] == b'\t') {
+            current += 1;
+        }
+
+        let is_line_directive = s[current..].starts_with(b"#line");
+
+        while current < n && s[current] != b'\r' && s[current] != b'\n' {
+            current += 1;
+        }
+
+        let newline_length = if current < n {
+            if s[current] == b'\r' {
+                if current + 1 < n && s[current + 1] == b'\n' {
+                    2
+                } else {
+                    1
+                }
+            } else {
+                1
+            }
+        } else {
+            0
+        };
+
+        if is_line_directive {
+            if line_start > start {
+                out.push_str(&input[start..line_start]);
+            }
+            current += newline_length;
+            start = current;
+            out.push_str(substitution);
+        } else {
+            current += newline_length;
+        }
+    }
+
+    if start < n {
+        // `current` has reached n here (or start == n); the tail is the last
+        // open chunk. When start == n nothing is left, matching upstream's
+        // append_chunk(current).
+        out.push_str(&input[start..n]);
+    }
+    out
+}
+
+// ---------------------------------------------------------------------------
+// 10. process_uniform_declarations
+//
+// Upstream rewrites every "uniform ..." declaration that carries an
+// initializer (uniform initializer syntax exists in desktop GLSL) into a
+// plain `uniform [precision] <type> <name>;` declaration, and passes
+// everything else through verbatim. Ported quirks, all deliberate:
+//   * the token match is a substring test at every scan position, so
+//     "uniformity" also opens a declaration (upstream compares 7 bytes);
+//   * precision keywords appearing AFTER the type are hoisted in front of it
+//     ("uniform vec4 highp x;" becomes "uniform highp vec4 x;");
+//   * only the first precision keyword is kept, later ones are skipped but
+//     consumed;
+//   * isspace/isalnum are the C-locale ASCII sets; bytes >= 0x80 are neither
+//     (glibc's table returns false for them in the C locale, which is the
+//     behaviour the corpus tests froze).
+// ---------------------------------------------------------------------------
+
+fn is_c_space(c: u8) -> bool {
+    // std::isspace in the C locale
+    matches!(c, b' ' | b'\t' | b'\n' | 0x0b | b'\r' | 0x0c)
+}
+
+fn is_c_alnum_or_underscore(c: u8) -> bool {
+    // std::isalnum in the C locale, plus the explicit '_' the scanner allows
+    c.is_ascii_alphanumeric() || c == b'_'
+}
+
+fn starts_with_at(s: &[u8], pos: usize, needle: &[u8]) -> bool {
+    if needle.is_empty() {
+        return true;
+    }
+    s[pos..].starts_with(needle)
+}
+
+fn process_uniform_declarations_impl(input: &str) -> String {
+    const PRECISION_KWS: [&[u8]; 3] = [b"highp", b"lowp", b"mediump"];
+
+    let s = input.as_bytes();
+    let n = s.len();
+    let mut out = String::with_capacity(n + 64);
+    let mut scan_pos = 0usize;
+    let mut chunk_start = 0usize;
+
+    while scan_pos < n {
+        if starts_with_at(s, scan_pos, b"uniform") {
+            if scan_pos > chunk_start {
+                out.push_str(&input[chunk_start..scan_pos]);
+            }
+
+            let decl_start = scan_pos;
+            scan_pos += 7;
+
+            let mut precision: Option<&str> = None;
+            let mut type_range: Option<(usize, usize)> = None;
+
+            // First inner loop: leading whitespace, then one optional
+            // precision keyword, then the type word.
+            if scan_pos < n {
+                while scan_pos < n && is_c_space(s[scan_pos]) {
+                    scan_pos += 1;
+                }
+                let mut found_precision = false;
+                for kw in PRECISION_KWS.iter() {
+                    if starts_with_at(s, scan_pos, kw) {
+                        precision = Some(std::str::from_utf8(kw).unwrap());
+                        scan_pos += kw.len();
+                        found_precision = true;
+                        break;
+                    }
+                }
+                if !found_precision {
+                    let type_start = scan_pos;
+                    while scan_pos < n && is_c_alnum_or_underscore(s[scan_pos]) {
+                        scan_pos += 1;
+                    }
+                    type_range = Some((type_start, scan_pos));
+                }
+                // The C++ loop unconditionally breaks after the type parse
+                // (its `break` sits at the end of the first iteration).
+            }
+
+            // Second inner loop: consume any further precision keywords
+            // (keeping only the first one seen overall).
+            while scan_pos < n {
+                while scan_pos < n && is_c_space(s[scan_pos]) {
+                    scan_pos += 1;
+                }
+                let mut found = false;
+                for kw in PRECISION_KWS.iter() {
+                    if starts_with_at(s, scan_pos, kw) {
+                        if precision.is_none() {
+                            precision = Some(std::str::from_utf8(kw).unwrap());
+                        }
+                        scan_pos += kw.len();
+                        found = true;
+                        break;
+                    }
+                }
+                if !found {
+                    break;
+                }
+            }
+
+            // Fallback type parse when the first loop took the precision
+            // branch (upstream re-parses into an empty `type`).
+            if type_range.is_none() {
+                let type_start = scan_pos;
+                while scan_pos < n && is_c_alnum_or_underscore(s[scan_pos]) {
+                    scan_pos += 1;
+                }
+                type_range = Some((type_start, scan_pos));
+            }
+
+            while scan_pos < n && is_c_space(s[scan_pos]) {
+                scan_pos += 1;
+            }
+            let name_start = scan_pos;
+            while scan_pos < n && is_c_alnum_or_underscore(s[scan_pos]) {
+                scan_pos += 1;
+            }
+            let name_range = (name_start, scan_pos);
+
+            let decl_end = match s[scan_pos..].iter().position(|&c| c == b';') {
+                Some(rel) => scan_pos + rel + 1,
+                None => n,
+            };
+
+            // has_initializer: an '=' before the ';'. find returns npos (no
+            // match) upstream, and npos < decl_end is false -- replicated.
+            let has_initializer = match s[scan_pos..].iter().position(|&c| c == b'=') {
+                Some(rel) => scan_pos + rel < decl_end,
+                None => false,
+            };
+
+            if has_initializer {
+                out.push_str("uniform");
+                if let Some(p) = precision {
+                    out.push(' ');
+                    out.push_str(p);
+                }
+                out.push(' ');
+                if let Some((a, b)) = type_range {
+                    out.push_str(&input[a..b]);
+                }
+                out.push(' ');
+                out.push_str(&input[name_range.0..name_range.1]);
+                out.push(';');
+            } else {
+                out.push_str(&input[decl_start..decl_end]);
+            }
+
+            scan_pos = decl_end;
+            chunk_start = decl_end;
+        } else {
+            scan_pos += 1;
+        }
+    }
+
+    if chunk_start < n {
+        out.push_str(&input[chunk_start..n]);
+    }
+    out
+}
+
+// ---------------------------------------------------------------------------
 // FFI surface (C ABI)
 // ---------------------------------------------------------------------------
 
@@ -779,6 +1013,33 @@ rs_entry!(
 rs_entry!(
     /// The two texelFetch rewrite passes of process_sampler_buffer.
     mg_rs_process_sampler_buffer_rewrite(src) -> *mut c_char, process_sampler_buffer_rewrite_impl
+);
+
+/// replace_line_starting_with: drops every "#line" line and appends
+/// `substitution` per dropped line. A null substitution means "".
+#[no_mangle]
+pub unsafe extern "C" fn mg_rs_strip_line_directives(
+    src: *const c_char,
+    substitution: *const c_char,
+) -> *mut c_char {
+    let r = catch_unwind(AssertUnwindSafe(|| {
+        let sub = if substitution.is_null() {
+            String::new()
+        } else {
+            match unsafe { CStr::from_ptr(substitution) }.to_str() {
+                Ok(s) => s.to_string(),
+                Err(_) => return Err("bad substitution".into()),
+            }
+        };
+        unsafe { take_src(src) }.map(|s| strip_line_directives_impl(&s, &sub))
+    }));
+    conv_string(r.unwrap_or_else(|_| Err("panic".into())))
+}
+
+rs_entry!(
+    /// process_uniform_declarations: rewrites initializer-carrying uniform
+    /// declarations into plain ones, byte-identical to the C++ scanner.
+    mg_rs_process_uniform_declarations(src) -> *mut c_char, process_uniform_declarations_impl
 );
 
 /// Probe used by the C++ side to detect the linked Rust core.
@@ -1034,6 +1295,92 @@ mod tests {
         assert!(!has_temporal_filter_def_impl("vec4 GI_TemporalFilter;"));
         assert!(!has_texture_query_lod_def_impl("vec2 mg_textureQueryLod;"));
         assert!(!has_texture_query_lod_def_impl("vec2mg_textureQueryLod(")); // \s+ required
+    }
+
+    #[test]
+    fn strip_line_directives_cases() {
+        // basic removal, substitution empty
+        assert_eq!(strip_line_directives_impl("a\n#line 5\nb\n", ""), "a\nb\n");
+        // leading spaces/tabs before the directive still count as a directive line
+        assert_eq!(strip_line_directives_impl("a\n  #line 5\nb\n", ""), "a\nb\n");
+        // substitution is appended per dropped line
+        assert_eq!(strip_line_directives_impl("a\n#line 1\nb\n#line 2\n", "X\n"), "a\nX\nb\nX\n");
+        // "\r\n" is consumed as one terminator
+        assert_eq!(strip_line_directives_impl("a\r\n#line 2\r\nb\r\n", ""), "a\r\nb\r\n");
+        // lone '\r' is a terminator too
+        assert_eq!(strip_line_directives_impl("a\r#line 2\rb\r", ""), "a\rb\r");
+        // a directive at EOF without a newline
+        assert_eq!(strip_line_directives_impl("a\n#line 7", ""), "a\n");
+        // "#line" inside a line (not at its start) survives
+        assert_eq!(strip_line_directives_impl("x #line 5\nb\n", ""), "x #line 5\nb\n");
+        // other directives are untouched
+        assert_eq!(strip_line_directives_impl("#version 150\n#line 1\n", ""), "#version 150\n");
+        // the match is the literal "#line": "#linex" also matches (7.. no,
+        // 5 bytes + anything) -- "#linex" starts with "#line" so the whole
+        // line goes, matching upstream's 5-byte compare.
+        assert_eq!(strip_line_directives_impl("#linex\nb\n", ""), "b\n");
+        // empty input
+        assert_eq!(strip_line_directives_impl("", ""), "");
+        assert_eq!(strip_line_directives_impl("", "sub\n"), "");
+    }
+
+    #[test]
+    fn uniform_declaration_cases() {
+        // plain declaration passes through verbatim
+        assert_eq!(
+            process_uniform_declarations_impl("uniform sampler2D tex;\n"),
+            "uniform sampler2D tex;\n"
+        );
+        // initializer form is rewritten
+        assert_eq!(
+            process_uniform_declarations_impl("uniform int count = 3;\n"),
+            "uniform int count;\n"
+        );
+        // precision before the type is preserved in the rewrite
+        assert_eq!(
+            process_uniform_declarations_impl("uniform highp int count = 3;\n"),
+            "uniform highp int count;\n"
+        );
+        // precision AFTER the type is hoisted in front of it (upstream quirk)
+        assert_eq!(
+            process_uniform_declarations_impl("uniform vec4 highp c = vec4(1.0);\n"),
+            "uniform highp vec4 c;\n"
+        );
+        // only the first precision keyword is kept, the second is consumed
+        assert_eq!(
+            process_uniform_declarations_impl("uniform highp lowp int q = 1;\n"),
+            "uniform highp int q;\n"
+        );
+        // uniform inside another word also triggers the rewrite (substring match)
+        assert_eq!(
+            process_uniform_declarations_impl("int xuniform int z = 1;\n"),
+            "int xuniform int z;\n"
+        );
+        // no semicolon and no initializer: the whole rest is the "declaration"
+        // (find(';') returns npos -> decl_end = length, no '=' -> verbatim).
+        assert_eq!(
+            process_uniform_declarations_impl("uniform vec4 c\nvoid main(){}\n"),
+            "uniform vec4 c\nvoid main(){}\n"
+        );
+        // no semicolon but an initializer after the name: no ';' exists, so
+        // decl_end = length (the whole rest is the "declaration") and the
+        // rewrite drops everything after the name -- upstream quirk.
+        assert_eq!(
+            process_uniform_declarations_impl("uniform int q = 1\nvoid main(){}\n"),
+            "uniform int q;"
+        );
+        // multiple declarations with text between them
+        assert_eq!(
+            process_uniform_declarations_impl("a\nuniform int p = 2;\nb\nuniform float f;\nc\n"),
+            "a\nuniform int p;\nb\nuniform float f;\nc\n"
+        );
+        // declaration without a name still rewrites with an empty name
+        assert_eq!(
+            process_uniform_declarations_impl("uniform int = 2;\n"),
+            "uniform int ;\n"
+        );
+        // empty input
+        assert_eq!(process_uniform_declarations_impl(""), "");
     }
 }
 

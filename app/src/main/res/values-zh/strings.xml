@@ -156,7 +156,7 @@
 <b><font color="@colorError">确定要继续吗？</font></b>]]></string>
     <string name="ok">确定</string>
     <string name="ok_with_countdown">确定 (%d 秒)</string>
-	<string name="removing_mobileglues">正在移除 MobileGlues…</string>
+        <string name="removing_mobileglues">正在移除 MobileGlues…</string>
     <string name="remove_failed">移除失败: %s</string>
     <string name="remove_complete_title">移除完成</string>
     <string name="remove_complete_message">MobileGlues 相关文件已完全移除。\n若需进一步在您的设备上完全移除 MobileGlues，请卸载此软件。\n\n感谢您使用 MobileGlues，我们随时欢迎您回来~</string>
@@ -205,6 +205,8 @@
     <string name="settings_group_diagnostics">诊断</string>
     <string name="option_perf_log">性能日志</string>
     <string name="option_perf_log_summary">游戏运行时记录帧率、帧时间、绘制/着色器/缓冲统计（MG/perf_report.txt），下次启动游戏生效。开销极小，不需要时请关闭。</string>
+    <string name="option_program_binary_cache">着色器程序缓存</string>
+    <string name="option_program_binary_cache_summary">保存链接好的着色器程序（MG/pipeline_cache.bin），同一光影包第二次运行时跳过驱动侧数秒的编译卡顿。默认开启，下次启动游戏生效。</string>
     <string name="perf_report_share">分享性能报告</string>
     <string name="perf_report_share_summary">把最近一次游戏的报告发给开发者，用于确定下一步优化方向</string>
     <string name="perf_report_missing">还没有报告：先打开性能日志并进游戏游玩一分钟，再回来分享。</string>

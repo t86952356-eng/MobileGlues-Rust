@@ -33,6 +33,7 @@ void init_settings() {
     global_settings.fsr1_setting = FSR1_Quality_Preset::Disabled;
     global_settings.hide_mg_env_level = HideMGEnvLevel::Disabled;
     global_settings.perf_log = false;
+    global_settings.program_binary_cache = true;
 
 #else
 
@@ -60,6 +61,10 @@ void init_settings() {
     HideMGEnvLevel hideMGEnvLevel =
         success ? static_cast<HideMGEnvLevel>(config_get_int("hideMGEnvLevel")) : HideMGEnvLevel::Disabled;
     bool perfLog = success ? (config_get_int("perfLog") > 0) : false;
+    // Default ON: a missing key (config_get_int -> -1) or an unreadable config
+    // keeps the pipeline cache enabled; 0 explicitly disables it.
+    int programBinaryCacheRaw = success ? config_get_int("programBinaryCache") : -1;
+    bool programBinaryCache = programBinaryCacheRaw < 0 ? true : programBinaryCacheRaw > 0;
 
     if (customGLVersionInt < 0) {
         customGLVersionInt = 0;
@@ -222,6 +227,7 @@ void init_settings() {
     // The env override wins over config.json so an A/B run can be done without
     // touching the settings file (MG_PERF_LOG=1 / =0); mg_perf_init() reads it.
     global_settings.perf_log = perfLog;
+    global_settings.program_binary_cache = programBinaryCache;
 #endif
 
     LOG_V("[MobileGlues] Setting: enableAngle                 = %s",
@@ -705,6 +711,7 @@ std::string dump_settings_string(std::string prefix) {
     ss << prefix << "ExtDirectStateAccess: " << (global_settings.ext_direct_state_access ? "True" : "False") << "\n";
     ss << prefix << "MaxGlslCacheSize: " << (global_settings.max_glsl_cache_size / 1024 / 1024) << "MB\n";
     ss << prefix << "PerfLog: " << (global_settings.perf_log ? "True" : "False") << "\n";
+    ss << prefix << "ProgramBinaryCache: " << (global_settings.program_binary_cache ? "True" : "False") << "\n";
 
     for (int i = 0; i < MD_ENTRY_COUNT; ++i) {
         ss << prefix << k_md_entries[i].order_key << ": ";

@@ -33,6 +33,17 @@ extern "C"
 
     GLAPI GLAPIENTRY void glGetShaderiv(GLuint shader, GLenum pname, GLint* params);
 
+    // Intercepted since 2.3.0 for the pipeline cache: glCompileShader can
+    // defer the driver compile (see gl/pipeline_cache.h), and the two query
+    // entry points replay recorded driver answers for a deferred shader.
+    GLAPI GLAPIENTRY void glCompileShader(GLuint shader);
+
+    GLAPI GLAPIENTRY void glGetShaderInfoLog(GLuint shader, GLsizei bufSize, GLsizei* length, GLchar* infoLog);
+
+    // Pipeline-cache helper: runs the deferred driver compile now and records
+    // the driver's status/log answers (gl/program.cpp uses it at link time).
+    GLAPI GLAPIENTRY void mg_force_compile_shader(GLuint shader);
+
 #ifdef __cplusplus
 }
 #endif

@@ -256,6 +256,11 @@ void trim(std::string& str) {
 
 // Process all uniform declarations into `uniform <precision> <type> <name>;` form
 std::string process_uniform_declarations(const std::string& glslCode) {
+    // mobileglues-rs: single-pass scanner over byte slices replaces the
+    // per-token substr() allocations; output is byte-for-byte identical,
+    // including the hoisted-precision and missing-semicolon quirks.
+    if (auto r = rs::process_uniform_declarations(glslCode)) return std::move(*r);
+
     std::string result;
     size_t scan_pos = 0;
     size_t chunk_start = 0;
@@ -396,6 +401,11 @@ std::string GLSLtoGLSLES(const char* glsl_code, GLenum glsl_type, uint essl_vers
 
 std::string replace_line_starting_with(const std::string& glslCode, const std::string& starting,
                                        const std::string& substitution = "") {
+    // mobileglues-rs: single-pass scanner. The match is on the literal "#line"
+    // prefix regardless of `starting` -- the historical behaviour this port
+    // preserves byte for byte (the parameter has always been advisory).
+    if (auto r = rs::strip_line_directives(glslCode, substitution)) return std::move(*r);
+
     std::string result;
     size_t length = glslCode.size();
     size_t start = 0;

@@ -8,6 +8,8 @@
     <string name="settings_group_diagnostics">التشخيص</string>
     <string name="option_perf_log">سجل الأداء</string>
     <string name="option_perf_log_summary">يسجّل معدل الإطارات وزمنها وإحصاءات الرسم والشيدرات والذاكرات أثناء اللعب (MG/perf_report.txt). يسري بدءًا من الدخول القادم للعبة. تكلفته ضئيلة؛ أوقفه عند عدم الحاجة.</string>
+    <string name="option_program_binary_cache">كاش برامج الشيدرات</string>
+    <string name="option_program_binary_cache_summary">يحفظ برامج الشيدرات المرتبطة (MG/pipeline_cache.bin) بحيث يتخطى التشغيل الثاني لنفس حزمة الشيدرات توقف تجميع الدايفر متعدد الثواني. مفعّل افتراضيًا ويسري من الدخول القادم للعبة.</string>
     <string name="perf_report_share">مشاركة تقرير الأداء</string>
     <string name="perf_report_share_summary">أرسل آخر تقرير من داخل اللعبة إلى المطوّر لتحديد أولوية التحسينات القادمة</string>
     <string name="perf_report_missing">لا يوجد تقرير بعد: فعّل سجل الأداء والعب دقيقة واحدة ثم عد للمشاركة.</string>

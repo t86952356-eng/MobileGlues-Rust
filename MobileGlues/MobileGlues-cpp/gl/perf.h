@@ -68,6 +68,29 @@ extern "C"
     void mg_perf_add_state_change(unsigned long long n);
     void mg_perf_add_use_program(unsigned long long n);
 
+    // Since 2.3.0 -- split of the useProgram counter: how many of the arriving
+    // glUseProgram calls were actually forwarded to the driver because the
+    // tracked program really changed, and how many were redundant (skipped).
+    void mg_perf_add_use_program_forwarded(unsigned long long n);
+    void mg_perf_add_use_program_skipped(unsigned long long n);
+
+    // Since 2.3.0 -- driver-side shader compile path (pipeline cache):
+    //   executed: a real glCompileShader ran on the driver, `ns` is its cost
+    //   deferred: a glCompileShader was absorbed by the deferral (no driver
+    //             call; the object's answers exist in the status cache or the
+    //             program will come from a cached binary)
+    //   status_hit: a compile-status / info-log query was answered from the
+    //             persisted record without compiling
+    void mg_perf_add_shader_compile_executed(unsigned long long ns);
+    void mg_perf_add_shader_compile_deferred(unsigned long long n);
+    void mg_perf_add_shader_status_hit(unsigned long long n);
+
+    // Since 2.3.0 -- driver-side link path (pipeline cache). `hit` is 1 when a
+    // cached program binary was tried; `ok` is 1 when it loaded and linked.
+    // `ns` is the glProgramBinary cost on a hit, 0 otherwise.
+    void mg_perf_add_program_link(unsigned long long ns);
+    void mg_perf_add_program_binary(unsigned long long ns, int hit, int ok);
+
     // Device identity, captured once a real GLES context exists (set_es_version).
     // Strings are copied; passing null keeps whatever was recorded before.
     void mg_perf_set_device_info(const char* renderer, const char* gles_version);
@@ -108,6 +131,34 @@ extern "C"
 #define MG_PERF_PROGRAM(n)                                                                                               \
     do {                                                                                                                 \
         if (mg_perf_active) mg_perf_add_use_program(n);                                                                  \
+    } while (0)
+#define MG_PERF_PROGRAM_FORWARDED(n)                                                                                     \
+    do {                                                                                                                 \
+        if (mg_perf_active) mg_perf_add_use_program_forwarded(n);                                                        \
+    } while (0)
+#define MG_PERF_PROGRAM_SKIPPED(n)                                                                                       \
+    do {                                                                                                                 \
+        if (mg_perf_active) mg_perf_add_use_program_skipped(n);                                                          \
+    } while (0)
+#define MG_PERF_SHADER_COMPILE_EXECUTED(ns)                                                                              \
+    do {                                                                                                                 \
+        if (mg_perf_active) mg_perf_add_shader_compile_executed(ns);                                                     \
+    } while (0)
+#define MG_PERF_SHADER_COMPILE_DEFERRED()                                                                                \
+    do {                                                                                                                 \
+        if (mg_perf_active) mg_perf_add_shader_compile_deferred(1);                                                      \
+    } while (0)
+#define MG_PERF_SHADER_STATUS_HIT()                                                                                      \
+    do {                                                                                                                 \
+        if (mg_perf_active) mg_perf_add_shader_status_hit(1);                                                            \
+    } while (0)
+#define MG_PERF_PROGRAM_LINK(ns)                                                                                         \
+    do {                                                                                                                 \
+        if (mg_perf_active) mg_perf_add_program_link(ns);                                                                \
+    } while (0)
+#define MG_PERF_PROGRAM_BINARY(ns, hit, ok)                                                                              \
+    do {                                                                                                                 \
+        if (mg_perf_active) mg_perf_add_program_binary(ns, hit, ok);                                                     \
     } while (0)
 
 #endif // MOBILEGLUES_PERF_H

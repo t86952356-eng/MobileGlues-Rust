@@ -158,6 +158,12 @@ private fun ConfigSections(controller: AppController, config: MGConfig) {
         }
 
         PreferenceGroup(title = stringResource(R.string.settings_group_cache)) {
+            SwitchPreferenceRow(
+                title = stringResource(R.string.option_program_binary_cache),
+                summary = stringResource(R.string.option_program_binary_cache_summary),
+                checked = config.programBinaryCache,
+                onCheckedChange = controller::setProgramBinaryCache,
+            )
             GlslCacheSlider(controller, config, deviceInfo?.totalRamBytes)
             // 没有缓存文件时不摆一个删不了东西的按钮：它按需浮现，删完收回。
             AnimatedVisibility(
